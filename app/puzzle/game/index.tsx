@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Clock, ChevronLeft } from 'lucide-react-native';
@@ -6,10 +6,14 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { ShapeComponents, ShapeType } from '@/components/puzzle/PuzzleShapes';
 import { generatePuzzle, PuzzleFormation, PuzzleShape, PuzzleSlot } from '@/lib/puzzleGenerator';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring, withSequence } from 'react-native-reanimated';
+import { AnimatedMascot } from '@/components/mascot/AnimatedMascot';
+import { useMascot } from '@/hooks/useMascot';
+import { MascotAnimation } from '@/lib/mascotTypes';
 
 export default function PuzzleGame() {
   const { theme } = useTheme();
   const { category } = useLocalSearchParams();
+  const { mascotType, currentAnimation, triggerAnimation } = useMascot();
 
   const [puzzle, setPuzzle] = useState<PuzzleFormation | null>(null);
   const [currentStep, setCurrentStep] = useState(0);
@@ -17,7 +21,10 @@ export default function PuzzleGame() {
   const [timeLeft, setTimeLeft] = useState(60);
   const [isGameActive, setIsGameActive] = useState(true);
   const [filledSlots, setFilledSlots] = useState<Set<number>>(new Set());
+  const [mascotReaction, setMascotReaction] = useState<MascotAnimation>('idle');
   const shakeAnimation = useSharedValue(0);
+  const idleTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const lastActivityRef = useRef<number>(Date.now());
 
   useEffect(() => {
     const newPuzzle = generatePuzzle('easy');
@@ -48,10 +55,31 @@ export default function PuzzleGame() {
   }, [isGameActive, puzzle]);
 
   useEffect(() => {
+    const checkIdleTime = () => {
+      const now = Date.now();
+      const timeSinceLastActivity = now - lastActivityRef.current;
+
+      if (timeSinceLastActivity > 10000 && isGameActive) {
+        setMascotReaction('tap_screen');
+        setTimeout(() => {
+          setMascotReaction('idle');
+        }, 2000);
+      }
+    };
+
+    idleTimerRef.current = setInterval(checkIdleTime, 10000);
+
     return () => {
       setIsGameActive(false);
+      if (idleTimerRef.current) {
+        clearInterval(idleTimerRef.current);
+      }
     };
-  }, []);
+  }, [isGameActive]);
+
+  useEffect(() => {
+    lastActivityRef.current = Date.now();
+  }, [selectedShape, currentStep]);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -91,10 +119,14 @@ export default function PuzzleGame() {
 
       if (currentStep + 1 === puzzle.correctSequence.length) {
         setIsGameActive(false);
-        const timeTaken = 60 - timeLeft;
-        router.push(`/puzzle/success?timeTaken=${timeTaken}`);
+        setMascotReaction('win');
+        setTimeout(() => {
+          const timeTaken = 60 - timeLeft;
+          router.push(`/puzzle/success?timeTaken=${timeTaken}`);
+        }, 1500);
       }
     } else {
+      setMascotReaction('lose');
       shakeAnimation.value = withSequence(
         withSpring(-10, { damping: 2 }),
         withSpring(10, { damping: 2 }),
@@ -105,7 +137,7 @@ export default function PuzzleGame() {
       setTimeout(() => {
         setIsGameActive(false);
         router.push('/puzzle/failed');
-      }, 500);
+      }, 1500);
     }
   };
 
@@ -132,6 +164,12 @@ export default function PuzzleGame() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <AnimatedMascot
+        mascotType={mascotType}
+        animation={mascotReaction}
+        onAnimationComplete={() => setMascotReaction('idle')}
+      />
+
       <View style={[styles.header, { backgroundColor: theme.colors.headerBackground }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <ChevronLeft size={24} color={theme.colors.text} />
