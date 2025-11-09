@@ -1,0 +1,1190 @@
+openapi: 3.0.3
+info:
+  title: PuzzleBITE API
+  description: |
+    The PuzzleBITE API provides endpoints for managing the gamified dining experience platform. 
+    It supports customer puzzle gameplay, admin management, analytics, and live feed functionality.
+    
+    ## Features
+    - 🎯 Puzzle gameplay with multiple categories
+    - 🎁 Dynamic offers and rewards system
+    - 👥 Customer and admin management
+    - 📊 Real-time analytics and reporting
+    - 📸 Live feed with social features
+    
+    ## Authentication
+    All endpoints require Bearer token authentication in the Authorization header.
+    
+  version: 1.0.0
+  contact:
+    name: PuzzleBITE Support
+    email: support@puzzlebite.com
+    url: https://puzzlebite.com/support
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: https://api.puzzlebite.com/v1
+    description: Production server
+  - url: https://staging-api.puzzlebite.com/v1
+    description: Staging server
+  - url: https://dev-api.puzzlebite.com/v1
+    description: Development server
+
+security:
+  - bearerAuth: []
+
+paths:
+  # Puzzle Management Endpoints
+  /puzzles/categories:
+    get:
+      tags:
+        - Puzzles
+      summary: Get all puzzle categories
+      description: Retrieve a list of all available puzzle categories with metadata
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PuzzleCategory'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /puzzles/categories/{categoryId}/questions:
+    get:
+      tags:
+        - Puzzles
+      summary: Get questions for a specific category
+      description: Retrieve puzzle questions for a given category with optional filtering
+      parameters:
+        - name: categoryId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: ipl
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 5
+            minimum: 1
+            maximum: 10
+          description: Number of questions to return
+        - name: difficulty
+          in: query
+          schema:
+            type: string
+            enum: [easy, medium, hard]
+          description: Filter by difficulty level
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      questions:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/PuzzleQuestion'
+                      timeLimit:
+                        type: integer
+                        example: 120
+                      totalQuestions:
+                        type: integer
+                        example: 5
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /puzzles/submit:
+    post:
+      tags:
+        - Puzzles
+      summary: Submit puzzle answers
+      description: Submit answers for a completed puzzle challenge
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PuzzleSubmission'
+      responses:
+        '200':
+          description: Puzzle submission successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/PuzzleResult'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  # Offers & Rewards Endpoints
+  /offers:
+    get:
+      tags:
+        - Offers
+      summary: Get available offers
+      description: Retrieve a list of available offers with optional filtering
+      parameters:
+        - name: cafeId
+          in: query
+          schema:
+            type: string
+          description: Filter offers by cafe
+        - name: active
+          in: query
+          schema:
+            type: boolean
+          description: Only return active offers
+        - name: category
+          in: query
+          schema:
+            type: string
+          description: Filter by offer category
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Offer'
+
+  /offers/{offerId}/activate:
+    post:
+      tags:
+        - Offers
+      summary: Activate an offer
+      description: Activate a specific offer for a customer
+      parameters:
+        - name: offerId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: offer_123
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                customerId:
+                  type: string
+                  example: customer_123
+                tableNumber:
+                  type: string
+                  example: T-05
+              required:
+                - customerId
+                - tableNumber
+      responses:
+        '200':
+          description: Offer activated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/OfferActivation'
+
+  /rewards/redeem:
+    post:
+      tags:
+        - Rewards
+      summary: Redeem a reward
+      description: Redeem an earned reward after puzzle completion
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RewardRedemption'
+      responses:
+        '200':
+          description: Reward redeemed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/RedemptionResult'
+
+  # Customer Management Endpoints
+  /customers/{customerId}:
+    get:
+      tags:
+        - Customers
+      summary: Get customer profile
+      description: Retrieve detailed customer profile and statistics
+      parameters:
+        - name: customerId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: customer_123
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/Customer'
+
+    put:
+      tags:
+        - Customers
+      summary: Update customer profile
+      description: Update customer information and preferences
+      parameters:
+        - name: customerId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: customer_123
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomerUpdate'
+      responses:
+        '200':
+          description: Customer updated successfully
+
+  /customers/{customerId}/stats:
+    put:
+      tags:
+        - Customers
+      summary: Update customer statistics
+      description: Update customer puzzle and reward statistics
+      parameters:
+        - name: customerId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: customer_123
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StatsUpdate'
+      responses:
+        '200':
+          description: Stats updated successfully
+
+  # Admin Management Endpoints
+  /admin/users/active:
+    get:
+      tags:
+        - Admin
+      summary: Get active users
+      description: Retrieve list of currently active users in the system
+      parameters:
+        - name: cafeId
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Cafe identifier
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, approved, completed]
+          description: Filter by user status
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ActiveUser'
+
+  /admin/approve:
+    post:
+      tags:
+        - Admin
+      summary: Approve customer request
+      description: Approve or reject a customer's offer activation request
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApprovalRequest'
+      responses:
+        '200':
+          description: Request processed successfully
+
+  /admin/analytics:
+    get:
+      tags:
+        - Admin
+      summary: Get analytics data
+      description: Retrieve comprehensive analytics and metrics
+      parameters:
+        - name: period
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [today, week, month]
+          description: Time period for analytics
+        - name: cafeId
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Cafe identifier
+        - name: metric
+          in: query
+          schema:
+            type: string
+            enum: [footfall, conversion, revenue, engagement]
+          description: Specific metric to retrieve
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/Analytics'
+
+  # Live Feed Endpoints
+  /feed:
+    get:
+      tags:
+        - Feed
+      summary: Get feed posts
+      description: Retrieve live feed posts with pagination
+      parameters:
+        - name: cafeId
+          in: query
+          schema:
+            type: string
+          description: Filter posts by cafe
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+          description: Number of posts to return
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+          description: Pagination offset
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/FeedPost'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+
+  /feed/upload:
+    post:
+      tags:
+        - Feed
+      summary: Upload feed image
+      description: Upload a new image to the live feed
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                image:
+                  type: string
+                  format: binary
+                  description: Image file to upload
+                cafeId:
+                  type: string
+                  description: Cafe identifier
+                description:
+                  type: string
+                  description: Image description
+              required:
+                - image
+                - cafeId
+      responses:
+        '200':
+          description: Image uploaded successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/UploadResult'
+
+  /feed/{postId}/like:
+    post:
+      tags:
+        - Feed
+      summary: Like or unlike a post
+      description: Toggle like status for a feed post
+      parameters:
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: post_123
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                customerId:
+                  type: string
+                  example: customer_123
+                action:
+                  type: string
+                  enum: [like, unlike]
+                  example: like
+              required:
+                - customerId
+                - action
+      responses:
+        '200':
+          description: Like status updated successfully
+
+  # Statistics & Charts Endpoints
+  /stats/charts/{type}:
+    get:
+      tags:
+        - Statistics
+      summary: Get chart data
+      description: Retrieve formatted data for various chart types
+      parameters:
+        - name: type
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [saved, offers, puzzles, footfall, conversion, discounts, success]
+          example: saved
+        - name: period
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [day, week, month]
+          description: Time period for chart data
+        - name: cafeId
+          in: query
+          schema:
+            type: string
+          description: Filter by cafe
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/ChartData'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    PuzzleCategory:
+      type: object
+      properties:
+        id:
+          type: string
+          example: ipl
+        name:
+          type: string
+          example: IPL
+        description:
+          type: string
+          example: Cricket & Sports
+        icon:
+          type: string
+          example: trophy
+        color:
+          type: string
+          example: "#F97316"
+        difficulty:
+          type: integer
+          minimum: 1
+          maximum: 5
+          example: 3
+        totalQuestions:
+          type: integer
+          example: 50
+
+    PuzzleQuestion:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        question:
+          type: string
+          example: "Who holds the record for highest individual score in Test cricket?"
+        options:
+          type: array
+          items:
+            type: string
+          example: ["Virat Kohli", "Sachin Tendulkar", "Karun Nair", "Rohit Sharma"]
+        correctAnswer:
+          type: integer
+          example: 2
+        difficulty:
+          type: string
+          enum: [easy, medium, hard]
+          example: medium
+        category:
+          type: string
+          example: ipl
+        explanation:
+          type: string
+          example: "Karun Nair scored 303* against England in 2016"
+
+    PuzzleSubmission:
+      type: object
+      properties:
+        categoryId:
+          type: string
+          example: ipl
+        answers:
+          type: array
+          items:
+            type: integer
+          example: [2, 1, 0, 2, 1]
+        timeSpent:
+          type: integer
+          example: 95
+        customerId:
+          type: string
+          example: customer_123
+        cafeId:
+          type: string
+          example: cafe_456
+      required:
+        - categoryId
+        - answers
+        - timeSpent
+        - customerId
+        - cafeId
+
+    PuzzleResult:
+      type: object
+      properties:
+        score:
+          type: integer
+          example: 5
+        totalQuestions:
+          type: integer
+          example: 5
+        accuracy:
+          type: number
+          example: 100
+        timeSpent:
+          type: integer
+          example: 95
+        passed:
+          type: boolean
+          example: true
+        rewardEligible:
+          type: boolean
+          example: true
+        rewardId:
+          type: string
+          example: reward_789
+
+    Offer:
+      type: object
+      properties:
+        id:
+          type: string
+          example: offer_123
+        title:
+          type: string
+          example: Morning Special
+        description:
+          type: string
+          example: Get 20% off on breakfast items
+        discount:
+          type: string
+          example: "20%"
+        discountType:
+          type: string
+          enum: [percentage, fixed, freeItem]
+          example: percentage
+        discountValue:
+          type: number
+          example: 20
+        isActive:
+          type: boolean
+          example: true
+        validUntil:
+          type: string
+          format: date-time
+          example: "2025-01-31T23:59:59Z"
+        cafeId:
+          type: string
+          example: cafe_456
+        requiredCategory:
+          type: string
+          example: ipl
+        image:
+          type: string
+          format: uri
+          example: "https://example.com/offer.jpg"
+
+    OfferActivation:
+      type: object
+      properties:
+        activationId:
+          type: string
+          example: activation_789
+        status:
+          type: string
+          enum: [pending, approved, rejected]
+          example: pending
+        expiresAt:
+          type: string
+          format: date-time
+          example: "2025-01-15T14:30:00Z"
+        puzzleRequired:
+          type: boolean
+          example: true
+        categoryId:
+          type: string
+          example: ipl
+
+    RewardRedemption:
+      type: object
+      properties:
+        rewardId:
+          type: string
+          example: reward_789
+        customerId:
+          type: string
+          example: customer_123
+        cafeId:
+          type: string
+          example: cafe_456
+      required:
+        - rewardId
+        - customerId
+        - cafeId
+
+    RedemptionResult:
+      type: object
+      properties:
+        redemptionId:
+          type: string
+          example: redemption_101
+        status:
+          type: string
+          enum: [approved, pending, rejected]
+          example: approved
+        discountApplied:
+          type: number
+          example: 20
+        finalAmount:
+          type: number
+          example: 80
+        redeemedAt:
+          type: string
+          format: date-time
+          example: "2025-01-15T12:30:00Z"
+
+    Customer:
+      type: object
+      properties:
+        id:
+          type: string
+          example: customer_123
+        name:
+          type: string
+          example: John Doe
+        email:
+          type: string
+          format: email
+          example: john@example.com
+        phone:
+          type: string
+          example: "+1234567890"
+        stats:
+          type: object
+          properties:
+            totalSaved:
+              type: number
+              example: 245
+            offersAvailed:
+              type: integer
+              example: 8
+            puzzlesCompleted:
+              type: integer
+              example: 12
+            successRate:
+              type: number
+              example: 85
+        preferences:
+          type: object
+          properties:
+            favoriteCategories:
+              type: array
+              items:
+                type: string
+              example: ["ipl", "bollywood"]
+            theme:
+              type: string
+              enum: [dark, light]
+              example: dark
+            notifications:
+              type: boolean
+              example: true
+        createdAt:
+          type: string
+          format: date-time
+        lastVisit:
+          type: string
+          format: date-time
+          example: "2025-01-14T10:30:00Z"
+
+    CustomerUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+        preferences:
+          type: object
+          properties:
+            favoriteCategories:
+              type: array
+              items:
+                type: string
+            theme:
+              type: string
+              enum: [dark, light]
+            notifications:
+              type: boolean
+
+    StatsUpdate:
+      type: object
+      properties:
+        puzzleCompleted:
+          type: boolean
+          example: true
+        category:
+          type: string
+          example: ipl
+        score:
+          type: integer
+          example: 5
+        timeSpent:
+          type: integer
+          example: 95
+        rewardEarned:
+          type: number
+          example: 20
+      required:
+        - puzzleCompleted
+
+    ActiveUser:
+      type: object
+      properties:
+        id:
+          type: string
+          example: customer_123
+        name:
+          type: string
+          example: John Doe
+        tableNumber:
+          type: string
+          example: T-05
+        requestTime:
+          type: string
+          format: date-time
+          example: "2025-01-15T10:30:00Z"
+        offerRequested:
+          type: string
+          example: Morning Special
+        status:
+          type: string
+          enum: [pending, approved, completed]
+          example: pending
+        puzzleCompleted:
+          type: boolean
+          example: false
+        category:
+          type: string
+          example: ipl
+
+    ApprovalRequest:
+      type: object
+      properties:
+        customerId:
+          type: string
+          example: customer_123
+        activationId:
+          type: string
+          example: activation_789
+        approved:
+          type: boolean
+          example: true
+        pbItem:
+          type: string
+          example: "Latte + Croissant"
+        pbDiscount:
+          type: string
+          example: "20%"
+      required:
+        - customerId
+        - activationId
+        - approved
+
+    Analytics:
+      type: object
+      properties:
+        period:
+          type: string
+          example: today
+        metrics:
+          type: object
+          properties:
+            footfall:
+              type: integer
+              example: 45
+            conversions:
+              type: integer
+              example: 35
+            conversionRate:
+              type: number
+              example: 77.8
+            totalDiscounts:
+              type: number
+              example: 1240
+            puzzleSuccessRate:
+              type: number
+              example: 92
+            avgEngagementTime:
+              type: number
+              example: 4.2
+            peakHour:
+              type: string
+              example: "14:00"
+        trends:
+          type: object
+          properties:
+            footfallChange:
+              type: number
+              example: 12.5
+            conversionChange:
+              type: number
+              example: 8.3
+            revenueChange:
+              type: number
+              example: -2.1
+
+    FeedPost:
+      type: object
+      properties:
+        id:
+          type: string
+          example: post_123
+        imageUrl:
+          type: string
+          format: uri
+          example: "https://images.pexels.com/photos/1833306.jpeg"
+        cafeName:
+          type: string
+          example: Brew & Bite
+        cafeLocation:
+          type: string
+          example: Downtown
+        instagramHandle:
+          type: string
+          example: "@brewandbite_cafe"
+        likes:
+          type: integer
+          example: 24
+        description:
+          type: string
+          example: "Fresh baked croissants with our signature coffee blend"
+        uploadTime:
+          type: string
+          format: date-time
+          example: "2025-01-15T08:30:00Z"
+        isLiked:
+          type: boolean
+          example: false
+
+    UploadResult:
+      type: object
+      properties:
+        postId:
+          type: string
+          example: post_124
+        imageUrl:
+          type: string
+          format: uri
+          example: "https://cdn.puzzlebite.com/images/post_124.jpg"
+        uploadedAt:
+          type: string
+          format: date-time
+          example: "2025-01-15T09:00:00Z"
+        status:
+          type: string
+          enum: [published, pending, rejected]
+          example: published
+
+    ChartData:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [bar, line, pie]
+          example: bar
+        title:
+          type: string
+          example: "Money Saved Over Time"
+        labels:
+          type: array
+          items:
+            type: string
+          example: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+        datasets:
+          type: array
+          items:
+            type: object
+            properties:
+              data:
+                type: array
+                items:
+                  type: number
+                example: [12, 25, 18, 35, 42, 28, 45]
+              color:
+                type: string
+                example: "#A855F7"
+        insights:
+          type: array
+          items:
+            type: string
+          example: ["Highest performance on weekends", "23% increase from last period"]
+
+    Pagination:
+      type: object
+      properties:
+        total:
+          type: integer
+          example: 156
+        limit:
+          type: integer
+          example: 20
+        offset:
+          type: integer
+          example: 0
+        hasMore:
+          type: boolean
+          example: true
+
+    Error:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              example: INVALID_REQUEST
+            message:
+              type: string
+              example: "The request parameters are invalid"
+            details:
+              type: object
+              properties:
+                field:
+                  type: string
+                  example: categoryId
+                reason:
+                  type: string
+                  example: "Category not found"
+        timestamp:
+          type: string
+          format: date-time
+          example: "2025-01-15T12:00:00Z"
+        requestId:
+          type: string
+          example: req_123456
+
+  responses:
+    Unauthorized:
+      description: Authentication required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            success: false
+            error:
+              code: UNAUTHORIZED
+              message: "Invalid or missing authentication token"
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            success: false
+            error:
+              code: NOT_FOUND
+              message: "The requested resource was not found"
+
+    ValidationError:
+      description: Validation error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            success: false
+            error:
+              code: VALIDATION_ERROR
+              message: "Request validation failed"
+              details:
+                field: "answers"
+                reason: "Must provide exactly 5 answers"
+
+    InternalError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            success: false
+            error:
+              code: INTERNAL_ERROR
+              message: "An unexpected error occurred"
+
+tags:
+  - name: Puzzles
+    description: Puzzle gameplay and category management
+  - name: Offers
+    description: Offer activation and management
+  - name: Rewards
+    description: Reward redemption system
+  - name: Customers
+    description: Customer profile and statistics
+  - name: Admin
+    description: Administrative functions and user management
+  - name: Feed
+    description: Live feed and social features
+  - name: Statistics
+    description: Analytics and chart data
