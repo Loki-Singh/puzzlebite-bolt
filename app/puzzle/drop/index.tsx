@@ -112,6 +112,7 @@ export default function PuzzleDropScreen() {
               piece={piece}
               onDrop={handlePieceDrop}
               theme={theme}
+              styles={styles}
             />
           ))}
         </View>
@@ -137,11 +138,13 @@ export default function PuzzleDropScreen() {
 function AnimatedPiece({
   piece,
   onDrop,
-  theme
+  theme,
+  styles
 }: {
   piece: PuzzlePiece;
   onDrop: (id: number) => void;
   theme: any;
+  styles: any;
 }) {
   const translateY = useSharedValue(0);
   const scale = useSharedValue(1);
