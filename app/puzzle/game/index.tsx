@@ -1,73 +1,42 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Clock, ChevronRight, CircleCheck as CheckCircle } from 'lucide-react-native';
+import { Clock, ChevronLeft } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
-
-interface Question {
-  id: number;
-  question: string;
-  options: string[];
-  correctAnswer: number;
-}
+import { ShapeComponents, ShapeType } from '@/components/puzzle/PuzzleShapes';
+import { generatePuzzle, PuzzleFormation, PuzzleShape, PuzzleSlot } from '@/lib/puzzleGenerator';
+import Animated, { useAnimatedStyle, useSharedValue, withSpring, withSequence } from 'react-native-reanimated';
 
 export default function PuzzleGame() {
   const { theme } = useTheme();
   const { category } = useLocalSearchParams();
-  
-  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
-  const [timeLeft, setTimeLeft] = useState(120); // 2 minutes
-  const [score, setScore] = useState(0);
-  const [isGameActive, setIsGameActive] = useState(true);
 
-  const questions: Question[] = [
-    {
-      id: 1,
-      question: "Who holds the record for the highest individual score in Test cricket by an Indian batsman?",
-      options: ["Virat Kohli", "Sachin Tendulkar", "Karun Nair", "Rohit Sharma"],
-      correctAnswer: 2
-    },
-    {
-      id: 2,
-      question: "In which year was the first IPL tournament held?",
-      options: ["2007", "2008", "2009", "2010"],
-      correctAnswer: 1
-    },
-    {
-      id: 3,
-      question: "Which team has won the most IPL titles?",
-      options: ["Mumbai Indians", "Chennai Super Kings", "Kolkata Knight Riders", "Royal Challengers Bangalore"],
-      correctAnswer: 0
-    },
-    {
-      id: 4,
-      question: "Who is known as 'Captain Cool' in Indian cricket?",
-      options: ["Virat Kohli", "Rohit Sharma", "MS Dhoni", "Hardik Pandya"],
-      correctAnswer: 2
-    },
-    {
-      id: 5,
-      question: "Which bowler has taken the most wickets in IPL history?",
-      options: ["Lasith Malinga", "Amit Mishra", "Dwayne Bravo", "Yuzvendra Chahal"],
-      correctAnswer: 2
-    }
-  ];
+  const [puzzle, setPuzzle] = useState<PuzzleFormation | null>(null);
+  const [currentStep, setCurrentStep] = useState(0);
+  const [selectedShape, setSelectedShape] = useState<PuzzleShape | null>(null);
+  const [timeLeft, setTimeLeft] = useState(60);
+  const [isGameActive, setIsGameActive] = useState(true);
+  const [filledSlots, setFilledSlots] = useState<Set<number>>(new Set());
+  const shakeAnimation = useSharedValue(0);
+
+  useEffect(() => {
+    const newPuzzle = generatePuzzle('easy');
+    setPuzzle(newPuzzle);
+  }, []);
 
   useEffect(() => {
     let timer: NodeJS.Timeout;
-    
-    if (isGameActive) {
+
+    if (isGameActive && puzzle) {
       timer = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev <= 1) {
-          // Time's up
+        setTimeLeft((prev) => {
+          if (prev <= 1) {
             setIsGameActive(false);
-          router.push('/puzzle/timeout');
-          return 0;
-        }
-        return prev - 1;
-      });
+            router.push('/puzzle/timeout');
+            return 0;
+          }
+          return prev - 1;
+        });
       }, 1000);
     }
 
@@ -76,9 +45,8 @@ export default function PuzzleGame() {
         clearInterval(timer);
       }
     };
-  }, [isGameActive]);
+  }, [isGameActive, puzzle]);
 
-  // Cleanup timer when component unmounts or game ends
   useEffect(() => {
     return () => {
       setIsGameActive(false);
@@ -91,55 +59,92 @@ export default function PuzzleGame() {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const handleAnswerSelect = (answerIndex: number) => {
-    setSelectedAnswer(answerIndex);
+  const handleShapeSelect = (shape: PuzzleShape) => {
+    if (!shape.used) {
+      setSelectedShape(shape);
+    }
   };
 
-  const handleNextQuestion = () => {
-    if (selectedAnswer === null) {
-      Alert.alert('Please select an answer', 'You must choose an option before proceeding.');
-      return;
-    }
+  const handleSlotPress = (slot: PuzzleSlot) => {
+    if (!selectedShape || slot.filled || !puzzle) return;
 
-    const currentQuestion = questions[currentQuestionIndex];
-    
-    if (selectedAnswer !== currentQuestion.correctAnswer) {
-      // Wrong answer - end game
-      setIsGameActive(false);
-      router.push('/puzzle/failed');
-      return;
-    }
+    const correctSlotId = puzzle.correctSequence[currentStep];
 
-    // Correct answer
-    setScore(score + 1);
-    
-    if (currentQuestionIndex === questions.length - 1) {
-      // Last question - success!
-      setIsGameActive(false);
-      router.push('/puzzle/success');
+    if (slot.id === correctSlotId && slot.shapeType === selectedShape.shapeType) {
+      setFilledSlots(prev => new Set([...prev, slot.id]));
+
+      setPuzzle(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          slots: prev.slots.map(s =>
+            s.id === slot.id ? { ...s, filled: true } : s
+          ),
+          shapes: prev.shapes.map(sh =>
+            sh.id === selectedShape.id ? { ...sh, used: true } : sh
+          ),
+        };
+      });
+
+      setSelectedShape(null);
+      setCurrentStep(prev => prev + 1);
+
+      if (currentStep + 1 === puzzle.correctSequence.length) {
+        setIsGameActive(false);
+        const timeTaken = 60 - timeLeft;
+        router.push(`/puzzle/success?timeTaken=${timeTaken}`);
+      }
     } else {
-      // Next question
-      setCurrentQuestionIndex(currentQuestionIndex + 1);
-      setSelectedAnswer(null);
+      shakeAnimation.value = withSequence(
+        withSpring(-10, { damping: 2 }),
+        withSpring(10, { damping: 2 }),
+        withSpring(-10, { damping: 2 }),
+        withSpring(0, { damping: 2 })
+      );
+
+      setTimeout(() => {
+        setIsGameActive(false);
+        router.push('/puzzle/failed');
+      }, 500);
     }
   };
 
-  const currentQuestion = questions[currentQuestionIndex];
-  const progress = ((currentQuestionIndex + 1) / questions.length) * 100;
+  const animatedShakeStyle = useAnimatedStyle(() => {
+    return {
+      transform: [{ translateX: shakeAnimation.value }],
+    };
+  });
+
+  if (!puzzle) {
+    return (
+      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+        <View style={styles.loadingContainer}>
+          <Text style={[styles.loadingText, { color: theme.colors.text }]}>
+            Generating puzzle...
+          </Text>
+        </View>
+      </View>
+    );
+  }
+
+  const progress = (currentStep / puzzle.correctSequence.length) * 100;
   const styles = createStyles(theme);
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      {/* Header with timer and progress */}
       <View style={[styles.header, { backgroundColor: theme.colors.headerBackground }]}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <ChevronLeft size={24} color={theme.colors.text} />
+        </TouchableOpacity>
+
         <View style={styles.timerContainer}>
           <Clock size={20} color={theme.colors.error} />
           <Text style={[styles.timerText, { color: theme.colors.error }]}>{formatTime(timeLeft)}</Text>
         </View>
-        
+
         <View style={styles.progressContainer}>
           <Text style={[styles.progressText, { color: theme.colors.textSecondary }]}>
-            {currentQuestionIndex + 1} of {questions.length}
+            {currentStep} of {puzzle.correctSequence.length}
           </Text>
           <View style={[styles.progressBar, { backgroundColor: theme.colors.secondary }]}>
             <View style={[styles.progressFill, { width: `${progress}%`, backgroundColor: theme.colors.primary }]} />
@@ -147,77 +152,95 @@ export default function PuzzleGame() {
         </View>
       </View>
 
-      {/* Question Card */}
-      <View style={[styles.questionCard, { backgroundColor: theme.colors.cardBackground, borderColor: theme.colors.border }]}>
-        <View style={styles.questionHeader}>
-          <View style={[styles.questionNumber, { backgroundColor: theme.colors.primary }]}>
-            <Text style={styles.questionNumberText}>{currentQuestionIndex + 1}</Text>
-          </View>
-          <Text style={[styles.questionTitle, { color: theme.colors.textSecondary }]}>Question {currentQuestionIndex + 1}</Text>
-        </View>
-        
-        <Text style={[styles.questionText, { color: theme.colors.text }]}>{currentQuestion.question}</Text>
-      </View>
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+        <Text style={[styles.instructionText, { color: theme.colors.text }]}>
+          Fill the formation by selecting shapes in the correct sequence
+        </Text>
 
-      {/* Options */}
-      <View style={styles.optionsContainer}>
-        {currentQuestion.options.map((option, index) => (
-          <TouchableOpacity
-            key={index}
-            style={[
-              styles.optionButton,
-              { backgroundColor: theme.colors.cardBackground, borderColor: theme.colors.border },
-              selectedAnswer === index && { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary }
-            ]}
-            onPress={() => handleAnswerSelect(index)}
-          >
-            <View style={styles.optionContent}>
-              <View style={[
-                styles.optionIndicator,
-                { backgroundColor: theme.colors.secondary },
-                selectedAnswer === index && { backgroundColor: '#FFFFFF' }
-              ]}>
-                {selectedAnswer === index && <CheckCircle size={16} color="#FFFFFF" />}
+        <Animated.View style={[styles.formationContainer, animatedShakeStyle]}>
+          <View style={styles.gridContainer}>
+            {Array.from({ length: puzzle.rows }).map((_, rowIndex) => (
+              <View key={rowIndex} style={styles.gridRow}>
+                {Array.from({ length: puzzle.cols }).map((_, colIndex) => {
+                  const slot = puzzle.slots.find(s => s.row === rowIndex && s.col === colIndex);
+
+                  if (!slot) {
+                    return <View key={colIndex} style={styles.emptyCell} />;
+                  }
+
+                  const ShapeComponent = ShapeComponents[slot.shapeType];
+                  const correspondingShape = puzzle.shapes.find(sh => sh.id === slot.id);
+
+                  return (
+                    <TouchableOpacity
+                      key={colIndex}
+                      style={[
+                        styles.slotCell,
+                        {
+                          backgroundColor: slot.filled ? 'transparent' : theme.colors.secondary,
+                          borderColor: slot.id === puzzle.correctSequence[currentStep] && selectedShape
+                            ? theme.colors.primary
+                            : theme.colors.border,
+                          borderWidth: slot.id === puzzle.correctSequence[currentStep] && selectedShape ? 3 : 1,
+                        }
+                      ]}
+                      onPress={() => handleSlotPress(slot)}
+                      disabled={slot.filled}
+                    >
+                      {slot.filled && correspondingShape ? (
+                        <ShapeComponent size={60} color={correspondingShape.color} />
+                      ) : (
+                        <View style={styles.slotPlaceholder}>
+                          <ShapeComponent size={50} color="#444" />
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
-              <Text style={[
-                styles.optionText,
-                { color: theme.colors.text },
-                selectedAnswer === index && { color: '#FFFFFF', fontWeight: '600' }
-              ]}>
-                {option}
-              </Text>
-            </View>
-          </TouchableOpacity>
-        ))}
-      </View>
+            ))}
+          </View>
+        </Animated.View>
 
-      {/* Next Button */}
-      <View style={styles.buttonContainer}>
-        <TouchableOpacity
-          style={[
-            styles.nextButton,
-            { backgroundColor: selectedAnswer === null ? theme.colors.secondary : theme.colors.primary }
-          ]}
-          onPress={handleNextQuestion}
-          disabled={selectedAnswer === null}
-        >
-          <Text style={[
-            styles.nextButtonText,
-            { color: selectedAnswer === null ? theme.colors.textSecondary : '#FFFFFF' }
-          ]}>
-            {currentQuestionIndex === questions.length - 1 ? 'Finish' : 'Next'}
+        <View style={[styles.instructionBox, { backgroundColor: theme.colors.cardBackground, borderColor: theme.colors.border }]}>
+          <Text style={[styles.instructionTitle, { color: theme.colors.primary }]}>Next Step:</Text>
+          <Text style={[styles.instructionDetail, { color: theme.colors.text }]}>
+            {selectedShape
+              ? `Place the ${selectedShape.shapeType} (${selectedShape.number}) in the correct position`
+              : 'Select a shape from below'}
           </Text>
-          <ChevronRight
-            size={20}
-            color={selectedAnswer === null ? theme.colors.textSecondary : '#FFFFFF'}
-          />
-        </TouchableOpacity>
-      </View>
+        </View>
 
-      {/* Score indicator */}
-      <View style={styles.scoreContainer}>
-        <Text style={[styles.scoreText, { color: theme.colors.textSecondary }]}>Score: {score}/{questions.length}</Text>
-      </View>
+        <View style={[styles.shapesContainer, { backgroundColor: theme.colors.cardBackground, borderColor: theme.colors.border }]}>
+          <Text style={[styles.shapesTitle, { color: theme.colors.text }]}>Available Shapes</Text>
+          <View style={styles.shapesGrid}>
+            {puzzle.shapes.map((shape) => {
+              const ShapeComponent = ShapeComponents[shape.shapeType];
+              return (
+                <TouchableOpacity
+                  key={shape.id}
+                  style={[
+                    styles.shapeButton,
+                    {
+                      backgroundColor: shape.used ? theme.colors.secondary : theme.colors.background,
+                      borderColor: selectedShape?.id === shape.id ? theme.colors.primary : theme.colors.border,
+                      borderWidth: selectedShape?.id === shape.id ? 3 : 1,
+                      opacity: shape.used ? 0.3 : 1,
+                    }
+                  ]}
+                  onPress={() => handleShapeSelect(shape)}
+                  disabled={shape.used}
+                >
+                  <ShapeComponent size={50} color={shape.color} />
+                  <View style={[styles.numberBadge, { backgroundColor: theme.colors.primary }]}>
+                    <Text style={styles.numberText}>{shape.number}</Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+      </ScrollView>
     </View>
   );
 }
@@ -226,12 +249,24 @@ const createStyles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    fontSize: 18,
+    fontWeight: '600',
+  },
   header: {
     paddingHorizontal: 20,
     paddingTop: 60,
     paddingBottom: 16,
     borderBottomLeftRadius: 24,
     borderBottomRightRadius: 24,
+  },
+  backButton: {
+    marginBottom: 12,
   },
   timerContainer: {
     flexDirection: 'row',
@@ -260,93 +295,97 @@ const createStyles = (theme: any) => StyleSheet.create({
     height: '100%',
     borderRadius: 3,
   },
-  questionCard: {
-    margin: 16,
-    padding: 20,
-    borderRadius: 16,
-    borderWidth: 1,
+  scrollView: {
+    flex: 1,
   },
-  questionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
+  scrollContent: {
+    padding: 16,
+    paddingBottom: 40,
   },
-  questionNumber: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  questionNumberText: {
-    color: '#FFFFFF',
-    fontWeight: 'bold',
-    fontSize: 16,
-  },
-  questionTitle: {
+  instructionText: {
     fontSize: 16,
     fontWeight: '600',
+    textAlign: 'center',
+    marginBottom: 20,
   },
-  questionText: {
-    fontSize: 18,
-    lineHeight: 26,
+  formationContainer: {
+    alignItems: 'center',
+    marginBottom: 20,
   },
-  optionsContainer: {
-    paddingHorizontal: 16,
-    gap: 12,
+  gridContainer: {
+    gap: 8,
   },
-  optionButton: {
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 2,
-  },
-  optionContent: {
+  gridRow: {
     flexDirection: 'row',
+    gap: 8,
+  },
+  emptyCell: {
+    width: 80,
+    height: 80,
+  },
+  slotCell: {
+    width: 80,
+    height: 80,
+    borderRadius: 12,
+    justifyContent: 'center',
     alignItems: 'center',
   },
-  optionIndicator: {
+  slotPlaceholder: {
+    opacity: 0.3,
+  },
+  instructionBox: {
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 20,
+  },
+  instructionTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 8,
+  },
+  instructionDetail: {
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  shapesContainer: {
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  shapesTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  shapesGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    justifyContent: 'center',
+  },
+  shapeButton: {
+    width: 80,
+    height: 80,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  numberBadge: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
     width: 24,
     height: 24,
     borderRadius: 12,
-    marginRight: 12,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  optionText: {
-    fontSize: 16,
-    flex: 1,
-  },
-  buttonContainer: {
-    paddingHorizontal: 16,
-    paddingVertical: 20,
-  },
-  nextButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 16,
-    borderRadius: 12,
-    shadowColor: theme.colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  nextButtonText: {
-    fontSize: 16,
+  numberText: {
+    color: '#FFFFFF',
+    fontSize: 12,
     fontWeight: 'bold',
-    marginRight: 8,
-  },
-  scoreContainer: {
-    position: 'absolute',
-    bottom: 20,
-    left: 20,
-    right: 20,
-    alignItems: 'center',
-  },
-  scoreText: {
-    fontSize: 14,
-    fontWeight: '500',
   },
 });
