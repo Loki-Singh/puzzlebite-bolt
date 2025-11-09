@@ -1,5 +1,92 @@
 import { ShapeType } from '@/components/puzzle/PuzzleShapes';
 
+export interface GridCell {
+  id: number;
+  shapeType: ShapeType;
+  color: string;
+  position: number;
+  isCorrect: boolean;
+}
+
+export interface SequencePuzzle {
+  grid: GridCell[];
+  sequence: number[];
+  gridSize: number;
+  difficulty: 'easy' | 'medium' | 'hard';
+  timeLimit: number;
+}
+
+const allShapeTypes: ShapeType[] = [
+  'triangle', 'square', 'circle', 'hexagon', 'star', 'diamond',
+  'pentagon', 'heart', 'moon', 'leaf', 'lightning', 'cloud',
+  'flower', 'butterfly', 'pizza', 'rocket', 'candy', 'umbrella'
+];
+
+const colors = [
+  '#EF4444', '#3B82F6', '#10B981', '#F59E0B', '#EC4899',
+  '#06B6D4', '#F97316', '#84CC16', '#8B5CF6', '#F43F5E',
+  '#14B8A6', '#6366F1', '#A855F7', '#D946EF', '#0EA5E9'
+];
+
+function shuffleArray<T>(array: T[]): T[] {
+  const shuffled = [...array];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+}
+
+function getRandomItem<T>(array: T[]): T {
+  return array[Math.floor(Math.random() * array.length)];
+}
+
+export function generateSequencePuzzle(difficulty: 'easy' | 'medium' | 'hard' = 'medium'): SequencePuzzle {
+  let gridSize: number;
+  let timeLimit: number;
+
+  switch (difficulty) {
+    case 'easy':
+      gridSize = 25;
+      timeLimit = 45;
+      break;
+    case 'medium':
+      gridSize = 36;
+      timeLimit = 60;
+      break;
+    case 'hard':
+      gridSize = 49;
+      timeLimit = 75;
+      break;
+  }
+
+  const grid: GridCell[] = [];
+  const sequence: number[] = [];
+
+  for (let i = 0; i < gridSize; i++) {
+    const shapeType = getRandomItem(allShapeTypes);
+    const color = getRandomItem(colors);
+
+    grid.push({
+      id: i,
+      shapeType,
+      color,
+      position: i,
+      isCorrect: false,
+    });
+
+    sequence.push(i);
+  }
+
+  return {
+    grid,
+    sequence,
+    gridSize,
+    difficulty,
+    timeLimit,
+  };
+}
+
 export interface PuzzleSlot {
   id: number;
   shapeType: ShapeType;
@@ -26,16 +113,6 @@ export interface PuzzleFormation {
 }
 
 const shapeTypes: ShapeType[] = ['triangle', 'square', 'circle', 'hexagon', 'star', 'diamond', 'pentagon', 'heart'];
-const colors = ['#EF4444', '#3B82F6', '#10B981', '#F59E0B', '#EC4899', '#06B6D4', '#F97316', '#84CC16'];
-
-function shuffleArray<T>(array: T[]): T[] {
-  const shuffled = [...array];
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-  }
-  return shuffled;
-}
 
 function generateEasyFormation(): PuzzleFormation {
   const rows = 2;

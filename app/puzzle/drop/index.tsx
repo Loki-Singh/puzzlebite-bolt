@@ -1,65 +1,86 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Dimensions, ScrollView } from 'react-native';
 import { router } from 'expo-router';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withSpring,
-  withTiming,
-  withSequence,
-  Easing,
-  runOnJS,
-} from 'react-native-reanimated';
-import { ChevronLeft, Shapes } from 'lucide-react-native';
+import { ChevronLeft, Clock, Target } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
-import { ShapeComponents, ShapeType } from '@/components/puzzle/PuzzleShapes';
-import { generatePuzzle, PuzzleShape } from '@/lib/puzzleGenerator';
+import { ShapeComponents } from '@/components/puzzle/PuzzleShapes';
+import { generateSequencePuzzle, GridCell } from '@/lib/puzzleGenerator';
 
-const { width, height } = Dimensions.get('window');
-const MACHINE_HEIGHT = 280;
-const MACHINE_WIDTH = width - 60;
+const { width } = Dimensions.get('window');
+const CELL_SIZE = 60;
 
 export default function PuzzleDropScreen() {
   const { theme } = useTheme();
   const [puzzle, setPuzzle] = useState<any>(null);
-  const [droppedCount, setDroppedCount] = useState(0);
-  const [isComplete, setIsComplete] = useState(false);
-  const [startTime] = useState(Date.now());
+  const [currentStep, setCurrentStep] = useState(0);
+  const [timeLeft, setTimeLeft] = useState(0);
+  const [isGameOver, setIsGameOver] = useState(false);
+  const [showPreview, setShowPreview] = useState(true);
+  const [previewTime, setPreviewTime] = useState(5);
 
   useEffect(() => {
-    const newPuzzle = generatePuzzle('easy');
+    const newPuzzle = generateSequencePuzzle('medium');
     setPuzzle(newPuzzle);
+    setTimeLeft(newPuzzle.timeLimit);
   }, []);
 
-  const handleShapeDrop = (shapeId: number) => {
-    setPuzzle((prev: any) => {
-      if (!prev) return prev;
-      return {
+  useEffect(() => {
+    if (showPreview && previewTime > 0) {
+      const timer = setTimeout(() => {
+        setPreviewTime(prev => prev - 1);
+      }, 1000);
+      return () => clearTimeout(timer);
+    } else if (showPreview && previewTime === 0) {
+      setShowPreview(false);
+    }
+  }, [showPreview, previewTime]);
+
+  useEffect(() => {
+    if (!showPreview && timeLeft > 0 && !isGameOver) {
+      const timer = setTimeout(() => {
+        setTimeLeft(prev => prev - 1);
+      }, 1000);
+      return () => clearTimeout(timer);
+    } else if (!showPreview && timeLeft === 0 && !isGameOver) {
+      handleGameOver(false);
+    }
+  }, [timeLeft, showPreview, isGameOver]);
+
+  const handleCellPress = (cellId: number) => {
+    if (isGameOver || showPreview) return;
+
+    const expectedCellId = puzzle.sequence[currentStep];
+
+    if (cellId === expectedCellId) {
+      setPuzzle((prev: any) => ({
         ...prev,
-        shapes: prev.shapes.map((s: PuzzleShape) =>
-          s.id === shapeId ? { ...s, used: true } : s
+        grid: prev.grid.map((cell: GridCell) =>
+          cell.id === cellId ? { ...cell, isCorrect: true } : cell
         ),
-      };
-    });
+      }));
 
-    setDroppedCount(prev => {
-      const newCount = prev + 1;
-
-      if (newCount === puzzle?.shapes.length) {
-        setTimeout(() => {
-          setIsComplete(true);
-          const timeTaken = Math.floor((Date.now() - startTime) / 1000);
-          setTimeout(() => {
-            router.replace({
-              pathname: '/puzzle/success',
-              params: { timeTaken: timeTaken.toString() }
-            });
-          }, 1000);
-        }, 500);
+      if (currentStep + 1 === puzzle.sequence.length) {
+        handleGameOver(true);
+      } else {
+        setCurrentStep(prev => prev + 1);
       }
+    } else {
+      handleGameOver(false);
+    }
+  };
 
-      return newCount;
-    });
+  const handleGameOver = (success: boolean) => {
+    setIsGameOver(true);
+    setTimeout(() => {
+      if (success) {
+        router.replace({
+          pathname: '/puzzle/success',
+          params: { timeTaken: (puzzle.timeLimit - timeLeft).toString() }
+        });
+      } else {
+        router.replace('/puzzle/failed');
+      }
+    }, 1000);
   };
 
   const styles = createStyles(theme);
@@ -69,12 +90,15 @@ export default function PuzzleDropScreen() {
       <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
         <View style={styles.loadingContainer}>
           <Text style={[styles.loadingText, { color: theme.colors.text }]}>
-            Preparing shapes...
+            Preparing puzzle...
           </Text>
         </View>
       </View>
     );
   }
+
+  const gridCols = Math.sqrt(puzzle.gridSize);
+  const currentCell = puzzle.grid[puzzle.sequence[currentStep]];
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -82,147 +106,105 @@ export default function PuzzleDropScreen() {
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <ChevronLeft size={24} color={theme.colors.text} />
         </TouchableOpacity>
-        <Text style={[styles.title, { color: theme.colors.text }]}>Drop the Shapes</Text>
+        <Text style={[styles.title, { color: theme.colors.text }]}>Sequence Challenge</Text>
         <View style={styles.placeholder} />
       </View>
 
-      <View style={styles.content}>
-        <View style={styles.instructionContainer}>
-          <Shapes size={32} color={theme.colors.primary} />
-          <Text style={[styles.instruction, { color: theme.colors.text }]}>
-            Tap each shape to drop it into the machine
+      {showPreview ? (
+        <View style={styles.previewContainer}>
+          <Text style={[styles.previewTitle, { color: theme.colors.text }]}>
+            Memorize the Sequence!
           </Text>
-        </View>
-
-        <View style={styles.progressContainer}>
-          <Text style={[styles.progressText, { color: theme.colors.textSecondary }]}>
-            {droppedCount} / {puzzle.shapes.length} shapes
+          <Text style={[styles.previewSubtitle, { color: theme.colors.textSecondary }]}>
+            Click shapes in order from 1 to {puzzle.gridSize}
           </Text>
-          <View style={[styles.progressBar, { backgroundColor: theme.colors.secondary }]}>
-            <View
-              style={[
-                styles.progressFill,
-                {
-                  backgroundColor: theme.colors.primary,
-                  width: `${(droppedCount / puzzle.shapes.length) * 100}%`
-                }
-              ]}
-            />
+          <View style={styles.previewTimerContainer}>
+            <Clock size={48} color={theme.colors.primary} />
+            <Text style={[styles.previewTimer, { color: theme.colors.primary }]}>
+              {previewTime}
+            </Text>
           </View>
+          <Text style={[styles.previewHint, { color: theme.colors.textSecondary }]}>
+            Starting from top-left, go row by row
+          </Text>
         </View>
+      ) : (
+        <>
+          <View style={styles.statsBar}>
+            <View style={[styles.statCard, { backgroundColor: theme.colors.cardBackground }]}>
+              <Clock size={20} color={theme.colors.primary} />
+              <Text style={[styles.statText, { color: theme.colors.text }]}>
+                {timeLeft}s
+              </Text>
+            </View>
 
-        <View style={styles.shapesContainer}>
-          {puzzle.shapes.map((shape: PuzzleShape) => (
-            <AnimatedShape
-              key={shape.id}
-              shape={shape}
-              onDrop={handleShapeDrop}
-              theme={theme}
-              styles={styles}
-            />
-          ))}
-        </View>
-
-        <View style={[styles.machine, { backgroundColor: theme.colors.cardBackground, borderColor: theme.colors.border }]}>
-          <View style={[styles.machineSlot, { backgroundColor: theme.colors.secondary }]}>
-            <View style={styles.machineGrid}>
-              {puzzle.slots.map((slot: any) => {
-                const correspondingShape = puzzle.shapes.find((s: PuzzleShape) => s.id === slot.id && s.used);
-                const ShapeComponent = ShapeComponents[slot.shapeType];
-
-                return (
-                  <View key={slot.id} style={[styles.machineSlotCell, { borderColor: theme.colors.border }]}>
-                    {correspondingShape ? (
-                      <ShapeComponent size={40} color={correspondingShape.color} />
-                    ) : (
-                      <ShapeComponent size={35} color="#555" />
-                    )}
-                  </View>
-                );
-              })}
+            <View style={[styles.statCard, { backgroundColor: theme.colors.cardBackground }]}>
+              <Target size={20} color={theme.colors.success} />
+              <Text style={[styles.statText, { color: theme.colors.text }]}>
+                {currentStep + 1} / {puzzle.gridSize}
+              </Text>
             </View>
           </View>
 
-          {isComplete && (
-            <View style={[styles.completeOverlay, { backgroundColor: theme.colors.primary + 'E6' }]}>
-              <Text style={styles.completeText}>Complete!</Text>
+          {currentCell && (
+            <View style={[styles.indicatorCard, { backgroundColor: theme.colors.cardBackground }]}>
+              <Text style={[styles.indicatorLabel, { color: theme.colors.textSecondary }]}>
+                Click this shape next:
+              </Text>
+              <View style={styles.indicatorShapeContainer}>
+                {React.createElement(ShapeComponents[currentCell.shapeType], {
+                  size: 80,
+                  color: currentCell.color,
+                })}
+                <View style={[styles.indicatorBadge, { backgroundColor: theme.colors.primary }]}>
+                  <Text style={styles.indicatorNumber}>#{currentStep + 1}</Text>
+                </View>
+              </View>
             </View>
           )}
-        </View>
-      </View>
-    </View>
-  );
-}
+        </>
+      )}
 
-function AnimatedShape({
-  shape,
-  onDrop,
-  theme,
-  styles
-}: {
-  shape: PuzzleShape;
-  onDrop: (id: number) => void;
-  theme: any;
-  styles: any;
-}) {
-  const translateY = useSharedValue(0);
-  const scale = useSharedValue(1);
-  const opacity = useSharedValue(1);
-
-  const handlePress = () => {
-    if (shape.used) return;
-
-    translateY.value = withSequence(
-      withTiming(-20, { duration: 150, easing: Easing.out(Easing.ease) }),
-      withTiming(height, {
-        duration: 800,
-        easing: Easing.in(Easing.cubic)
-      }, () => {
-        runOnJS(onDrop)(shape.id);
-      })
-    );
-
-    scale.value = withSequence(
-      withSpring(1.2, { damping: 10 }),
-      withTiming(0.8, { duration: 800 })
-    );
-
-    opacity.value = withTiming(0, { duration: 800 });
-  };
-
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [
-      { translateY: translateY.value },
-      { scale: scale.value },
-      { rotate: `${translateY.value * 0.5}deg` }
-    ],
-    opacity: opacity.value,
-  }));
-
-  if (shape.used) {
-    return null;
-  }
-
-  const ShapeComponent = ShapeComponents[shape.shapeType];
-
-  return (
-    <TouchableOpacity onPress={handlePress} style={styles.shapeWrapper}>
-      <Animated.View
-        style={[
-          styles.shapeCard,
-          {
-            backgroundColor: theme.colors.cardBackground,
-            borderColor: theme.colors.border,
-          },
-          animatedStyle
-        ]}
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
       >
-        <ShapeComponent size={50} color={shape.color} />
-        <View style={[styles.numberBadge, { backgroundColor: theme.colors.primary }]}>
-          <Text style={styles.numberText}>{shape.number}</Text>
+        <View style={[styles.gridContainer, { opacity: showPreview ? 0.5 : 1 }]}>
+          {puzzle.grid.map((cell: GridCell, index: number) => {
+            const ShapeComponent = ShapeComponents[cell.shapeType];
+            const isClicked = cell.isCorrect;
+
+            return (
+              <TouchableOpacity
+                key={cell.id}
+                onPress={() => handleCellPress(cell.id)}
+                disabled={isClicked || showPreview}
+                style={[
+                  styles.gridCell,
+                  {
+                    backgroundColor: isClicked
+                      ? theme.colors.success + '40'
+                      : theme.colors.cardBackground,
+                    borderColor: isClicked ? theme.colors.success : theme.colors.border,
+                    opacity: isClicked ? 0.6 : 1,
+                  },
+                ]}
+              >
+                <ShapeComponent size={40} color={cell.color} />
+                {!showPreview && (
+                  <View style={[styles.cellNumber, { backgroundColor: theme.colors.secondary }]}>
+                    <Text style={[styles.cellNumberText, { color: theme.colors.textSecondary }]}>
+                      {index + 1}
+                    </Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            );
+          })}
         </View>
-      </Animated.View>
-    </TouchableOpacity>
+      </ScrollView>
+    </View>
   );
 }
 
@@ -262,126 +244,119 @@ const createStyles = (theme: any) => StyleSheet.create({
   placeholder: {
     width: 40,
   },
-  content: {
+  previewContainer: {
     flex: 1,
-    paddingHorizontal: 20,
-    paddingTop: 30,
-  },
-  instructionContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 30,
-    gap: 12,
+    alignItems: 'center',
+    padding: 20,
   },
-  instruction: {
+  previewTitle: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  previewSubtitle: {
     fontSize: 16,
+    marginBottom: 40,
     textAlign: 'center',
-    maxWidth: 250,
   },
-  progressContainer: {
+  previewTimerContainer: {
+    alignItems: 'center',
     marginBottom: 30,
   },
-  progressText: {
+  previewTimer: {
+    fontSize: 64,
+    fontWeight: 'bold',
+    marginTop: 10,
+  },
+  previewHint: {
     fontSize: 14,
-    fontWeight: '600',
-    marginBottom: 8,
     textAlign: 'center',
+    fontStyle: 'italic',
   },
-  progressBar: {
-    height: 8,
-    borderRadius: 4,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    borderRadius: 4,
-  },
-  shapesContainer: {
+  statsBar: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
     justifyContent: 'center',
     gap: 12,
-    marginBottom: 40,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
   },
-  shapeWrapper: {
-    width: 80,
-    height: 80,
-  },
-  shapeCard: {
-    width: 80,
-    height: 80,
-    borderRadius: 12,
-    borderWidth: 2,
-    justifyContent: 'center',
+  statCard: {
+    flexDirection: 'row',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 12,
+    minWidth: 100,
+    justifyContent: 'center',
+  },
+  statText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  indicatorCard: {
+    marginHorizontal: 20,
+    marginBottom: 16,
+    padding: 20,
+    borderRadius: 16,
+    alignItems: 'center',
+  },
+  indicatorLabel: {
+    fontSize: 14,
+    marginBottom: 12,
+    fontWeight: '500',
+  },
+  indicatorShapeContainer: {
     position: 'relative',
   },
-  numberBadge: {
+  indicatorBadge: {
     position: 'absolute',
-    top: 4,
-    right: 4,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
+    top: -8,
+    right: -8,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
   },
-  numberText: {
+  indicatorNumber: {
     color: '#FFFFFF',
-    fontSize: 11,
+    fontSize: 14,
     fontWeight: 'bold',
   },
-  machine: {
-    height: MACHINE_HEIGHT,
-    width: MACHINE_WIDTH,
-    alignSelf: 'center',
-    borderRadius: 20,
-    borderWidth: 3,
-    padding: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
+  scrollView: {
+    flex: 1,
   },
-  machineSlot: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 16,
-    borderWidth: 2,
-    borderStyle: 'dashed',
-    borderColor: theme.colors.border,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 8,
+  scrollContent: {
+    padding: 20,
   },
-  machineGrid: {
+  gridContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+    justifyContent: 'center',
     gap: 8,
-    justifyContent: 'center',
   },
-  machineSlotCell: {
-    width: 60,
-    height: 60,
-    backgroundColor: 'rgba(0,0,0,0.2)',
+  gridCell: {
+    width: CELL_SIZE,
+    height: CELL_SIZE,
     borderRadius: 8,
-    borderWidth: 1,
+    borderWidth: 2,
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  cellNumber: {
+    position: 'absolute',
+    top: 2,
+    left: 2,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  completeOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  completeText: {
-    fontSize: 32,
+  cellNumberText: {
+    fontSize: 9,
     fontWeight: 'bold',
-    color: '#FFFFFF',
   },
 });
