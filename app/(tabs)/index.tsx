@@ -270,7 +270,7 @@ export default function CustomerLanding() {
 
             <TouchableOpacity
               style={[styles.quickActionCard, { backgroundColor: theme.colors.cardBackground, borderColor: theme.colors.border }]}
-              onPress={() => router.push('/mascot/selector')}
+              onPress={() => router.push('/mascot')}
             >
               <UserCircle size={24} color="#8B5CF6" />
               <Text style={[styles.quickActionText, { color: theme.colors.text }]}>My Mascot</Text>
