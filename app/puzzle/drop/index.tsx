@@ -10,48 +10,42 @@ import Animated, {
   Easing,
   runOnJS,
 } from 'react-native-reanimated';
-import { Puzzle, ChevronLeft } from 'lucide-react-native';
+import { ChevronLeft, Shapes } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
+import { ShapeComponents, ShapeType } from '@/components/puzzle/PuzzleShapes';
+import { generatePuzzle, PuzzleShape } from '@/lib/puzzleGenerator';
 
 const { width, height } = Dimensions.get('window');
-const PIECE_SIZE = 70;
-const MACHINE_HEIGHT = 200;
-const MACHINE_WIDTH = width - 80;
-const NUM_PIECES = 9;
-const GRID_COLS = 3;
-
-interface PuzzlePiece {
-  id: number;
-  color: string;
-  dropped: boolean;
-}
+const MACHINE_HEIGHT = 280;
+const MACHINE_WIDTH = width - 60;
 
 export default function PuzzleDropScreen() {
   const { theme } = useTheme();
-  const [pieces, setPieces] = useState<PuzzlePiece[]>([]);
+  const [puzzle, setPuzzle] = useState<any>(null);
   const [droppedCount, setDroppedCount] = useState(0);
   const [isComplete, setIsComplete] = useState(false);
   const [startTime] = useState(Date.now());
 
   useEffect(() => {
-    const colors = ['#0066FF', '#06B6D4', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#14B8A6', '#3B82F6'];
-    const initialPieces = Array.from({ length: NUM_PIECES }, (_, i) => ({
-      id: i,
-      color: colors[i],
-      dropped: false,
-    }));
-    setPieces(initialPieces);
+    const newPuzzle = generatePuzzle('easy');
+    setPuzzle(newPuzzle);
   }, []);
 
-  const handlePieceDrop = (pieceId: number) => {
-    setPieces(prev =>
-      prev.map(p => (p.id === pieceId ? { ...p, dropped: true } : p))
-    );
+  const handleShapeDrop = (shapeId: number) => {
+    setPuzzle((prev: any) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        shapes: prev.shapes.map((s: PuzzleShape) =>
+          s.id === shapeId ? { ...s, used: true } : s
+        ),
+      };
+    });
 
     setDroppedCount(prev => {
       const newCount = prev + 1;
 
-      if (newCount === NUM_PIECES) {
+      if (newCount === puzzle?.shapes.length) {
         setTimeout(() => {
           setIsComplete(true);
           const timeTaken = Math.floor((Date.now() - startTime) / 1000);
@@ -70,27 +64,39 @@ export default function PuzzleDropScreen() {
 
   const styles = createStyles(theme);
 
+  if (!puzzle) {
+    return (
+      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+        <View style={styles.loadingContainer}>
+          <Text style={[styles.loadingText, { color: theme.colors.text }]}>
+            Preparing shapes...
+          </Text>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <View style={[styles.header, { backgroundColor: theme.colors.headerBackground }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <ChevronLeft size={24} color={theme.colors.text} />
         </TouchableOpacity>
-        <Text style={[styles.title, { color: theme.colors.text }]}>Drop the Pieces</Text>
+        <Text style={[styles.title, { color: theme.colors.text }]}>Drop the Shapes</Text>
         <View style={styles.placeholder} />
       </View>
 
       <View style={styles.content}>
         <View style={styles.instructionContainer}>
-          <Puzzle size={32} color={theme.colors.primary} />
+          <Shapes size={32} color={theme.colors.primary} />
           <Text style={[styles.instruction, { color: theme.colors.text }]}>
-            Tap each puzzle piece to drop it into the machine
+            Tap each shape to drop it into the machine
           </Text>
         </View>
 
         <View style={styles.progressContainer}>
           <Text style={[styles.progressText, { color: theme.colors.textSecondary }]}>
-            {droppedCount} / {NUM_PIECES} pieces
+            {droppedCount} / {puzzle.shapes.length} shapes
           </Text>
           <View style={[styles.progressBar, { backgroundColor: theme.colors.secondary }]}>
             <View
@@ -98,19 +104,19 @@ export default function PuzzleDropScreen() {
                 styles.progressFill,
                 {
                   backgroundColor: theme.colors.primary,
-                  width: `${(droppedCount / NUM_PIECES) * 100}%`
+                  width: `${(droppedCount / puzzle.shapes.length) * 100}%`
                 }
               ]}
             />
           </View>
         </View>
 
-        <View style={styles.piecesContainer}>
-          {pieces.map((piece) => (
-            <AnimatedPiece
-              key={piece.id}
-              piece={piece}
-              onDrop={handlePieceDrop}
+        <View style={styles.shapesContainer}>
+          {puzzle.shapes.map((shape: PuzzleShape) => (
+            <AnimatedShape
+              key={shape.id}
+              shape={shape}
+              onDrop={handleShapeDrop}
               theme={theme}
               styles={styles}
             />
@@ -119,13 +125,26 @@ export default function PuzzleDropScreen() {
 
         <View style={[styles.machine, { backgroundColor: theme.colors.cardBackground, borderColor: theme.colors.border }]}>
           <View style={[styles.machineSlot, { backgroundColor: theme.colors.secondary }]}>
-            <Text style={[styles.machineText, { color: theme.colors.textSecondary }]}>
-              Drop Zone
-            </Text>
+            <View style={styles.machineGrid}>
+              {puzzle.slots.map((slot: any) => {
+                const correspondingShape = puzzle.shapes.find((s: PuzzleShape) => s.id === slot.id && s.used);
+                const ShapeComponent = ShapeComponents[slot.shapeType];
+
+                return (
+                  <View key={slot.id} style={[styles.machineSlotCell, { borderColor: theme.colors.border }]}>
+                    {correspondingShape ? (
+                      <ShapeComponent size={40} color={correspondingShape.color} />
+                    ) : (
+                      <ShapeComponent size={35} color="#555" />
+                    )}
+                  </View>
+                );
+              })}
+            </View>
           </View>
 
           {isComplete && (
-            <View style={styles.completeOverlay}>
+            <View style={[styles.completeOverlay, { backgroundColor: theme.colors.primary + 'E6' }]}>
               <Text style={styles.completeText}>Complete!</Text>
             </View>
           )}
@@ -135,13 +154,13 @@ export default function PuzzleDropScreen() {
   );
 }
 
-function AnimatedPiece({
-  piece,
+function AnimatedShape({
+  shape,
   onDrop,
   theme,
   styles
 }: {
-  piece: PuzzlePiece;
+  shape: PuzzleShape;
   onDrop: (id: number) => void;
   theme: any;
   styles: any;
@@ -151,7 +170,7 @@ function AnimatedPiece({
   const opacity = useSharedValue(1);
 
   const handlePress = () => {
-    if (piece.dropped) return;
+    if (shape.used) return;
 
     translateY.value = withSequence(
       withTiming(-20, { duration: 150, easing: Easing.out(Easing.ease) }),
@@ -159,7 +178,7 @@ function AnimatedPiece({
         duration: 800,
         easing: Easing.in(Easing.cubic)
       }, () => {
-        runOnJS(onDrop)(piece.id);
+        runOnJS(onDrop)(shape.id);
       })
     );
 
@@ -180,20 +199,28 @@ function AnimatedPiece({
     opacity: opacity.value,
   }));
 
-  if (piece.dropped) {
+  if (shape.used) {
     return null;
   }
 
+  const ShapeComponent = ShapeComponents[shape.shapeType];
+
   return (
-    <TouchableOpacity onPress={handlePress} style={styles.pieceWrapper}>
+    <TouchableOpacity onPress={handlePress} style={styles.shapeWrapper}>
       <Animated.View
         style={[
-          styles.piece,
-          { backgroundColor: piece.color },
+          styles.shapeCard,
+          {
+            backgroundColor: theme.colors.cardBackground,
+            borderColor: theme.colors.border,
+          },
           animatedStyle
         ]}
       >
-        <Puzzle size={32} color="#FFFFFF" />
+        <ShapeComponent size={50} color={shape.color} />
+        <View style={[styles.numberBadge, { backgroundColor: theme.colors.primary }]}>
+          <Text style={styles.numberText}>{shape.number}</Text>
+        </View>
       </Animated.View>
     </TouchableOpacity>
   );
@@ -202,6 +229,15 @@ function AnimatedPiece({
 const createStyles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    fontSize: 18,
+    fontWeight: '600',
   },
   header: {
     flexDirection: 'row',
@@ -261,21 +297,22 @@ const createStyles = (theme: any) => StyleSheet.create({
     height: '100%',
     borderRadius: 4,
   },
-  piecesContainer: {
+  shapesContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'center',
     gap: 12,
     marginBottom: 40,
   },
-  pieceWrapper: {
-    width: PIECE_SIZE,
-    height: PIECE_SIZE,
+  shapeWrapper: {
+    width: 80,
+    height: 80,
   },
-  piece: {
-    width: PIECE_SIZE,
-    height: PIECE_SIZE,
+  shapeCard: {
+    width: 80,
+    height: 80,
     borderRadius: 12,
+    borderWidth: 2,
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
@@ -283,6 +320,22 @@ const createStyles = (theme: any) => StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 8,
+    position: 'relative',
+  },
+  numberBadge: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  numberText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: 'bold',
   },
   machine: {
     height: MACHINE_HEIGHT,
@@ -290,27 +343,38 @@ const createStyles = (theme: any) => StyleSheet.create({
     alignSelf: 'center',
     borderRadius: 20,
     borderWidth: 3,
-    padding: 20,
+    padding: 16,
     justifyContent: 'center',
     alignItems: 'center',
   },
   machineSlot: {
     width: '100%',
-    height: 120,
+    height: '100%',
     borderRadius: 16,
     borderWidth: 2,
     borderStyle: 'dashed',
     borderColor: theme.colors.border,
     justifyContent: 'center',
     alignItems: 'center',
+    padding: 8,
   },
-  machineText: {
-    fontSize: 18,
-    fontWeight: 'bold',
+  machineGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    justifyContent: 'center',
+  },
+  machineSlotCell: {
+    width: 60,
+    height: 60,
+    backgroundColor: 'rgba(0,0,0,0.2)',
+    borderRadius: 8,
+    borderWidth: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   completeOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 102, 255, 0.9)',
     borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
