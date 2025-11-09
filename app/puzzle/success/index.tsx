@@ -1,106 +1,144 @@
-import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { router } from 'expo-router';
-import { Trophy, Star, Gift, Chrome as Home } from 'lucide-react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
+import { router, useLocalSearchParams } from 'expo-router';
+import Animated, { FadeIn, FadeInDown, ZoomIn } from 'react-native-reanimated';
+import { Gift, Sparkles, Home } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
+import { supabase } from '@/lib/supabase';
+
+interface Reward {
+  id: string;
+  title: string;
+  description: string;
+  discount_value: string;
+  image_url: string;
+}
 
 export default function PuzzleSuccess() {
   const { theme } = useTheme();
+  const params = useLocalSearchParams();
+  const timeTaken = params.timeTaken as string;
+  const [reward, setReward] = useState<Reward | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Here you would typically update the backend about puzzle completion
-    // and notify the admin system
+    fetchRandomReward();
   }, []);
 
-  const handleGoHome = () => {
-    router.push('/');
-  };
+  const fetchRandomReward = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('rewards')
+        .select('*')
+        .eq('active', true);
 
-  const handleViewOffers = () => {
-    router.push('/(tabs)');
+      if (error) throw error;
+
+      if (data && data.length > 0) {
+        const randomReward = data[Math.floor(Math.random() * data.length)];
+        setReward(randomReward);
+
+        const userId = `device_${Date.now()}`;
+        await supabase.from('user_rewards').insert({
+          user_id: userId,
+          reward_id: randomReward.id,
+          puzzle_completed: true,
+          time_taken: parseInt(timeTaken || '0'),
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching reward:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const styles = createStyles(theme);
 
+  if (loading || !reward) {
+    return (
+      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+        <View style={styles.loadingContainer}>
+          <Text style={[styles.loadingText, { color: theme.colors.text }]}>
+            Revealing your reward...
+          </Text>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      {/* Success Animation Area */}
-      <View style={styles.celebrationContainer}>
-        <View style={[styles.trophyContainer, { backgroundColor: theme.colors.primary }]}>
-          <Trophy size={80} color="#F59E0B" />
-        </View>
-        
-        <View style={styles.starsContainer}>
-          <Star size={24} color="#F59E0B" style={styles.star1} />
-          <Star size={32} color="#FCD34D" style={styles.star2} />
-          <Star size={20} color="#F59E0B" style={styles.star3} />
-          <Star size={28} color="#FCD34D" style={styles.star4} />
-        </View>
-      </View>
+      <Animated.View entering={FadeIn.duration(600)} style={styles.content}>
+        <Animated.View entering={ZoomIn.delay(200).springify()} style={styles.iconContainer}>
+          <View style={[styles.iconCircle, { backgroundColor: theme.colors.primary }]}>
+            <Gift size={64} color="#FFFFFF" />
+          </View>
+          <Animated.View entering={ZoomIn.delay(400).springify()} style={styles.sparkle1}>
+            <Sparkles size={24} color="#F59E0B" />
+          </Animated.View>
+          <Animated.View entering={ZoomIn.delay(600).springify()} style={styles.sparkle2}>
+            <Sparkles size={20} color="#EC4899" />
+          </Animated.View>
+          <Animated.View entering={ZoomIn.delay(500).springify()} style={styles.sparkle3}>
+            <Sparkles size={28} color="#06B6D4" />
+          </Animated.View>
+        </Animated.View>
 
-      {/* Success Message */}
-      <View style={styles.messageContainer}>
-        <Text style={[styles.successTitle, { color: theme.colors.text }]}>Booyah!! You have done it!</Text>
-        <Text style={[styles.successSubtitle, { color: theme.colors.textSecondary }]}>
-          Congratulations! You've successfully completed all puzzles within the time limit.
-        </Text>
-      </View>
+        <Animated.Text
+          entering={FadeInDown.delay(300).springify()}
+          style={[styles.congratsText, { color: theme.colors.text }]}
+        >
+          Congratulations!
+        </Animated.Text>
 
-      {/* Achievement Stats */}
-      <View style={styles.statsContainer}>
-        <View style={[styles.statCard, { backgroundColor: theme.colors.cardBackground, borderColor: theme.colors.border }]}>
-          <Text style={[styles.statNumber, { color: theme.colors.primary }]}>5/5</Text>
-          <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Puzzles Solved</Text>
-        </View>
-        
-        <View style={[styles.statCard, { backgroundColor: theme.colors.cardBackground, borderColor: theme.colors.border }]}>
-          <Text style={[styles.statNumber, { color: theme.colors.primary }]}>100%</Text>
-          <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Accuracy</Text>
-        </View>
-        
-        <View style={[styles.statCard, { backgroundColor: theme.colors.cardBackground, borderColor: theme.colors.border }]}>
-          <Text style={[styles.statNumber, { color: theme.colors.primary }]}>⚡</Text>
-          <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Lightning Fast</Text>
-        </View>
-      </View>
+        <Animated.Text
+          entering={FadeInDown.delay(400).springify()}
+          style={[styles.subtitle, { color: theme.colors.textSecondary }]}
+        >
+          You completed the puzzle in {timeTaken} seconds
+        </Animated.Text>
 
-      {/* Reward Information */}
-      <View style={[styles.rewardCard, { backgroundColor: theme.colors.cardBackground, borderColor: theme.colors.border }]}>
-        <View style={styles.rewardHeader}>
-          <Gift size={24} color={theme.colors.success} />
-          <Text style={[styles.rewardTitle, { color: theme.colors.text }]}>Your Reward is Ready!</Text>
-        </View>
-        
-        <Text style={[styles.rewardDescription, { color: theme.colors.textSecondary }]}>
-          Great job! Your discount will be applied when the cafe admin processes your order. 
-          Wait for the confirmation and enjoy your meal!
-        </Text>
-        
-        <View style={styles.rewardStatus}>
-          <View style={[styles.statusIndicator, { backgroundColor: theme.colors.warning }]} />
-          <Text style={[styles.statusText, { color: theme.colors.warning }]}>Waiting for admin approval</Text>
-        </View>
-      </View>
+        <Animated.View
+          entering={FadeInDown.delay(500).springify()}
+          style={[styles.rewardCard, { backgroundColor: theme.colors.cardBackground, borderColor: theme.colors.border }]}
+        >
+          <Image source={{ uri: reward.image_url }} style={styles.rewardImage} />
 
-      {/* Action Buttons */}
-      <View style={styles.buttonContainer}>
-        <TouchableOpacity style={[styles.primaryButton, { backgroundColor: theme.colors.primary }]} onPress={handleViewOffers}>
-          <Text style={styles.primaryButtonText}>View My Offers</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity style={[styles.secondaryButton, { backgroundColor: theme.colors.cardBackground, borderColor: theme.colors.primary }]} onPress={handleGoHome}>
-          <Home size={20} color={theme.colors.primary} />
-          <Text style={[styles.secondaryButtonText, { color: theme.colors.primary }]}>Back to Home</Text>
-        </TouchableOpacity>
-      </View>
+          <View style={styles.rewardContent}>
+            <View style={[styles.discountBadge, { backgroundColor: theme.colors.primary }]}>
+              <Text style={styles.discountText}>{reward.discount_value}</Text>
+            </View>
 
-      {/* Fun Fact */}
-      <View style={[styles.funFactContainer, { backgroundColor: theme.colors.cardBackground, borderColor: theme.colors.border }]}>
-        <Text style={[styles.funFactTitle, { color: theme.colors.primary }]}>🎉 Fun Fact</Text>
-        <Text style={[styles.funFactText, { color: theme.colors.textSecondary }]}>
-          You're among the top 15% of players who complete puzzles on their first try!
-        </Text>
-      </View>
+            <Text style={[styles.rewardTitle, { color: theme.colors.text }]}>
+              {reward.title}
+            </Text>
+
+            <Text style={[styles.rewardDescription, { color: theme.colors.textSecondary }]}>
+              {reward.description}
+            </Text>
+          </View>
+        </Animated.View>
+
+        <Animated.View entering={FadeInDown.delay(700).springify()} style={styles.actionContainer}>
+          <TouchableOpacity
+            style={[styles.claimButton, { backgroundColor: theme.colors.primary }]}
+            onPress={() => router.push('/(tabs)')}
+          >
+            <Text style={styles.claimButtonText}>Claim Reward</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.homeButton, { borderColor: theme.colors.border }]}
+            onPress={() => router.push('/(tabs)')}
+          >
+            <Home size={20} color={theme.colors.text} />
+            <Text style={[styles.homeButtonText, { color: theme.colors.text }]}>
+              Back to Home
+            </Text>
+          </TouchableOpacity>
+        </Animated.View>
+      </Animated.View>
     </View>
   );
 }
@@ -108,169 +146,133 @@ export default function PuzzleSuccess() {
 const createStyles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
-    padding: 20,
   },
-  celebrationContainer: {
-    alignItems: 'center',
-    marginTop: 40,
-    marginBottom: 40,
-    position: 'relative',
-  },
-  trophyContainer: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
+  loadingContainer: {
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: theme.colors.primary,
+  },
+  loadingText: {
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  content: {
+    flex: 1,
+    paddingHorizontal: 20,
+    paddingTop: 80,
+    alignItems: 'center',
+  },
+  iconContainer: {
+    position: 'relative',
+    marginBottom: 40,
+  },
+  iconCircle: {
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.3,
     shadowRadius: 16,
-    elevation: 8,
+    elevation: 12,
   },
-  starsContainer: {
+  sparkle1: {
     position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+    top: -10,
+    right: -10,
   },
-  star1: {
+  sparkle2: {
+    position: 'absolute',
+    bottom: 10,
+    left: -15,
+  },
+  sparkle3: {
     position: 'absolute',
     top: 20,
-    left: 30,
+    left: -20,
   },
-  star2: {
-    position: 'absolute',
-    top: 10,
-    right: 20,
-  },
-  star3: {
-    position: 'absolute',
-    bottom: 30,
-    left: 20,
-  },
-  star4: {
-    position: 'absolute',
-    bottom: 20,
-    right: 40,
-  },
-  messageContainer: {
-    alignItems: 'center',
-    marginBottom: 32,
-  },
-  successTitle: {
-    fontSize: 28,
+  congratsText: {
+    fontSize: 32,
     fontWeight: 'bold',
-    textAlign: 'center',
     marginBottom: 12,
   },
-  successSubtitle: {
+  subtitle: {
     fontSize: 16,
-    textAlign: 'center',
-    lineHeight: 24,
-  },
-  statsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 24,
-  },
-  statCard: {
-    borderRadius: 12,
-    padding: 16,
-    alignItems: 'center',
-    flex: 1,
-    marginHorizontal: 4,
-    borderWidth: 1,
-  },
-  statNumber: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 4,
-  },
-  statLabel: {
-    fontSize: 12,
+    marginBottom: 40,
     textAlign: 'center',
   },
   rewardCard: {
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 24,
+    width: '100%',
+    borderRadius: 20,
     borderWidth: 1,
+    overflow: 'hidden',
+    marginBottom: 40,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 6,
   },
-  rewardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  rewardImage: {
+    width: '100%',
+    height: 180,
+  },
+  rewardContent: {
+    padding: 20,
+  },
+  discountBadge: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 12,
+    alignSelf: 'flex-start',
     marginBottom: 12,
   },
-  rewardTitle: {
+  discountText: {
     fontSize: 18,
-    fontWeight: 'bold',
-    marginLeft: 8,
-  },
-  rewardDescription: {
-    fontSize: 14,
-    lineHeight: 20,
-    marginBottom: 16,
-  },
-  rewardStatus: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  statusIndicator: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginRight: 8,
-  },
-  statusText: {
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  buttonContainer: {
-    gap: 12,
-    marginBottom: 20,
-  },
-  primaryButton: {
-    paddingVertical: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-    shadowColor: theme.colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  primaryButtonText: {
-    fontSize: 16,
     fontWeight: 'bold',
     color: '#FFFFFF',
   },
-  secondaryButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 16,
-    borderRadius: 12,
-    borderWidth: 2,
-  },
-  secondaryButtonText: {
-    fontSize: 16,
-    marginLeft: 8,
-    fontWeight: 'bold',
-  },
-  funFactContainer: {
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-  },
-  funFactTitle: {
-    fontSize: 16,
+  rewardTitle: {
+    fontSize: 22,
     fontWeight: 'bold',
     marginBottom: 8,
   },
-  funFactText: {
-    fontSize: 14,
-    lineHeight: 20,
+  rewardDescription: {
+    fontSize: 15,
+    lineHeight: 22,
+  },
+  actionContainer: {
+    width: '100%',
+    gap: 12,
+  },
+  claimButton: {
+    paddingVertical: 16,
+    borderRadius: 16,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  claimButtonText: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  homeButton: {
+    flexDirection: 'row',
+    paddingVertical: 14,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    gap: 8,
+  },
+  homeButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

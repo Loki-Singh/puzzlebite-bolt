@@ -233,6 +233,22 @@ export default function CustomerLanding() {
           ))}
         </View>
 
+        {/* Puzzle Drop CTA */}
+        <TouchableOpacity
+          style={[styles.puzzleDropCTA, { backgroundColor: theme.colors.primary }]}
+          onPress={() => router.push('/puzzle/drop')}
+        >
+          <View style={styles.puzzleDropContent}>
+            <View style={styles.puzzleDropIcon}>
+              <Gift size={40} color="#FFFFFF" />
+            </View>
+            <View style={styles.puzzleDropText}>
+              <Text style={styles.puzzleDropTitle}>Drop & Win!</Text>
+              <Text style={styles.puzzleDropSubtitle}>Play the puzzle game to unlock surprise rewards</Text>
+            </View>
+          </View>
+        </TouchableOpacity>
+
         {/* Quick Actions */}
         <View style={styles.quickActionsSection}>
           <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Quick Actions</Text>
@@ -241,17 +257,17 @@ export default function CustomerLanding() {
               <History size={24} color={theme.colors.primary} />
               <Text style={[styles.quickActionText, { color: theme.colors.text }]}>History</Text>
             </TouchableOpacity>
-            
+
             <TouchableOpacity style={[styles.quickActionCard, { backgroundColor: theme.colors.cardBackground, borderColor: theme.colors.border }]}>
               <TrendingUp size={24} color="#06B6D4" />
               <Text style={[styles.quickActionText, { color: theme.colors.text }]}>Stats</Text>
             </TouchableOpacity>
-            
+
             <TouchableOpacity style={[styles.quickActionCard, { backgroundColor: theme.colors.cardBackground, borderColor: theme.colors.border }]}>
               <Gift size={24} color="#F59E0B" />
               <Text style={[styles.quickActionText, { color: theme.colors.text }]}>Rewards</Text>
             </TouchableOpacity>
-            
+
             <TouchableOpacity style={[styles.quickActionCard, { backgroundColor: theme.colors.cardBackground, borderColor: theme.colors.border }]}>
               <Star size={24} color="#EF4444" />
               <Text style={[styles.quickActionText, { color: theme.colors.text }]}>Favorites</Text>
@@ -510,6 +526,43 @@ const createStyles = (theme: any) => StyleSheet.create({
   pendingText: {
     fontSize: 12,
     fontWeight: 'bold',
+  },
+  puzzleDropCTA: {
+    borderRadius: 20,
+    padding: 20,
+    marginBottom: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  puzzleDropContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  puzzleDropIcon: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  puzzleDropText: {
+    flex: 1,
+  },
+  puzzleDropTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    marginBottom: 4,
+  },
+  puzzleDropSubtitle: {
+    fontSize: 14,
+    color: '#E2E8F0',
+    lineHeight: 20,
   },
   quickActionsSection: {
     marginBottom: 24,
