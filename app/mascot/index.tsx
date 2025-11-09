@@ -6,7 +6,7 @@ import {
   TouchableOpacity,
   TextInput,
   ScrollView,
-  Alert,
+  Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
@@ -21,6 +21,8 @@ export default function MascotSelector() {
   const [mascotName, setMascotName] = useState('');
   const [loading, setLoading] = useState(false);
   const [currentPreference, setCurrentPreference] = useState<any>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
 
   useEffect(() => {
     loadCurrentPreference();
@@ -50,8 +52,11 @@ export default function MascotSelector() {
   };
 
   const handleSave = async () => {
+    setError(null);
+    setSuccess(null);
+
     if (!mascotName.trim()) {
-      Alert.alert('Error', 'Please enter a name for your mascot');
+      setError('Please enter a name for your mascot');
       return;
     }
 
@@ -60,8 +65,10 @@ export default function MascotSelector() {
       const {
         data: { user },
       } = await supabase.auth.getUser();
+
       if (!user) {
-        Alert.alert('Error', 'You must be logged in');
+        setError('You must be logged in to save your mascot');
+        setLoading(false);
         return;
       }
 
@@ -72,24 +79,27 @@ export default function MascotSelector() {
       };
 
       if (currentPreference) {
-        const { error } = await supabase
+        const { error: updateError } = await supabase
           .from('mascot_preferences')
           .update(preference)
           .eq('user_id', user.id);
 
-        if (error) throw error;
+        if (updateError) throw updateError;
       } else {
-        const { error } = await supabase
+        const { error: insertError } = await supabase
           .from('mascot_preferences')
           .insert(preference);
 
-        if (error) throw error;
+        if (insertError) throw insertError;
       }
 
-      Alert.alert('Success', 'Your mascot has been saved!');
-      router.back();
+      setSuccess('Your mascot has been saved!');
+      setTimeout(() => {
+        router.back();
+      }, 1500);
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to save mascot');
+      console.error('Save mascot error:', error);
+      setError(error.message || 'Failed to save mascot');
     } finally {
       setLoading(false);
     }
@@ -108,6 +118,18 @@ export default function MascotSelector() {
           Pick a companion to join you on your puzzle adventures!
         </Text>
       </View>
+
+      {error && (
+        <View style={[styles.messageBox, styles.errorBox]}>
+          <Text style={styles.messageText}>{error}</Text>
+        </View>
+      )}
+
+      {success && (
+        <View style={[styles.messageBox, styles.successBox]}>
+          <Text style={styles.messageText}>{success}</Text>
+        </View>
+      )}
 
       <View style={styles.mascotsGrid}>
         {Object.entries(MASCOT_PERSONALITIES).map(([key, personality]) => {
@@ -202,8 +224,30 @@ const styles = StyleSheet.create({
   },
   header: {
     marginTop: 40,
-    marginBottom: 30,
+    marginBottom: 20,
     alignItems: 'center',
+  },
+  messageBox: {
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 20,
+    marginHorizontal: 4,
+  },
+  errorBox: {
+    backgroundColor: '#FEE2E2',
+    borderWidth: 1,
+    borderColor: '#EF4444',
+  },
+  successBox: {
+    backgroundColor: '#D1FAE5',
+    borderWidth: 1,
+    borderColor: '#10B981',
+  },
+  messageText: {
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'center',
+    color: '#1F2937',
   },
   title: {
     fontSize: 32,
