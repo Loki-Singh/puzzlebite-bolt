@@ -9,8 +9,9 @@ import {
   Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { supabase } from '@/lib/supabase';
 import { MASCOT_PERSONALITIES, MascotType } from '@/lib/mascotTypes';
+
+const MASCOT_STORAGE_KEY = '@mascot_preference';
 import { getMascotSVG } from '@/components/mascot/MascotSVGs';
 import { useTheme } from '@/contexts/ThemeContext';
 
@@ -30,21 +31,14 @@ export default function MascotSelector() {
 
   const loadCurrentPreference = async () => {
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data, error } = await supabase
-        .from('mascot_preferences')
-        .select('*')
-        .eq('user_id', user.id)
-        .maybeSingle();
-
-      if (data) {
-        setCurrentPreference(data);
-        setSelectedMascot(data.selected_mascot as MascotType);
-        setMascotName(data.mascot_name || '');
+      if (Platform.OS === 'web') {
+        const stored = localStorage.getItem(MASCOT_STORAGE_KEY);
+        if (stored) {
+          const data = JSON.parse(stored);
+          setCurrentPreference(data);
+          setSelectedMascot(data.selected_mascot as MascotType);
+          setMascotName(data.mascot_name || '');
+        }
       }
     } catch (error) {
       console.error('Error loading preference:', error);
@@ -62,38 +56,19 @@ export default function MascotSelector() {
 
     setLoading(true);
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) {
-        setError('You must be logged in to save your mascot');
-        setLoading(false);
-        return;
-      }
-
       const preference = {
-        user_id: user.id,
         selected_mascot: selectedMascot,
         mascot_name: mascotName.trim(),
+        saved_at: new Date().toISOString(),
       };
 
-      if (currentPreference) {
-        const { error: updateError } = await supabase
-          .from('mascot_preferences')
-          .update(preference)
-          .eq('user_id', user.id);
-
-        if (updateError) throw updateError;
-      } else {
-        const { error: insertError } = await supabase
-          .from('mascot_preferences')
-          .insert(preference);
-
-        if (insertError) throw insertError;
+      if (Platform.OS === 'web') {
+        localStorage.setItem(MASCOT_STORAGE_KEY, JSON.stringify(preference));
       }
 
+      setCurrentPreference(preference);
       setSuccess('Your mascot has been saved!');
+
       setTimeout(() => {
         router.back();
       }, 1500);
