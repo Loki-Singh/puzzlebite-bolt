@@ -5,12 +5,19 @@ export interface GridCell {
   shapeType: ShapeType;
   color: string;
   position: number;
-  isCorrect: boolean;
+  shapeNumber: number;
+  isClicked: boolean;
+}
+
+export interface DisplayShape {
+  shapeType: ShapeType;
+  color: string;
+  shapeNumber: number;
 }
 
 export interface SequencePuzzle {
   grid: GridCell[];
-  sequence: number[];
+  displaySequence: DisplayShape[];
   gridSize: number;
   difficulty: 'easy' | 'medium' | 'hard';
   timeLimit: number;
@@ -60,27 +67,49 @@ export function generateSequencePuzzle(difficulty: 'easy' | 'medium' | 'hard' = 
       break;
   }
 
+  const shapeToNumberMap: Map<string, number> = new Map();
+  let currentShapeNumber = 1;
+
   const grid: GridCell[] = [];
-  const sequence: number[] = [];
+  const displaySequence: DisplayShape[] = [];
+  const usedShapes: Set<string> = new Set();
 
   for (let i = 0; i < gridSize; i++) {
     const shapeType = getRandomItem(allShapeTypes);
     const color = getRandomItem(colors);
+    const shapeKey = `${shapeType}-${color}`;
+
+    if (!shapeToNumberMap.has(shapeKey)) {
+      shapeToNumberMap.set(shapeKey, currentShapeNumber);
+      currentShapeNumber++;
+    }
+
+    const shapeNumber = shapeToNumberMap.get(shapeKey)!;
 
     grid.push({
       id: i,
       shapeType,
       color,
       position: i,
-      isCorrect: false,
+      shapeNumber,
+      isClicked: false,
     });
 
-    sequence.push(i);
+    if (!usedShapes.has(shapeKey)) {
+      displaySequence.push({
+        shapeType,
+        color,
+        shapeNumber,
+      });
+      usedShapes.add(shapeKey);
+    }
   }
+
+  const shuffledDisplaySequence = shuffleArray(displaySequence);
 
   return {
     grid,
-    sequence,
+    displaySequence: shuffledDisplaySequence,
     gridSize,
     difficulty,
     timeLimit,

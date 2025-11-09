@@ -4,7 +4,7 @@ import { router } from 'expo-router';
 import { ChevronLeft, Clock, Target } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { ShapeComponents } from '@/components/puzzle/PuzzleShapes';
-import { generateSequencePuzzle, GridCell } from '@/lib/puzzleGenerator';
+import { generateSequencePuzzle, GridCell, DisplayShape } from '@/lib/puzzleGenerator';
 
 const { width } = Dimensions.get('window');
 const CELL_SIZE = 60;
@@ -12,7 +12,8 @@ const CELL_SIZE = 60;
 export default function PuzzleDropScreen() {
   const { theme } = useTheme();
   const [puzzle, setPuzzle] = useState<any>(null);
-  const [currentStep, setCurrentStep] = useState(0);
+  const [currentDisplayIndex, setCurrentDisplayIndex] = useState(0);
+  const [correctClicks, setCorrectClicks] = useState(0);
   const [timeLeft, setTimeLeft] = useState(0);
   const [isGameOver, setIsGameOver] = useState(false);
   const [showPreview, setShowPreview] = useState(true);
@@ -46,23 +47,38 @@ export default function PuzzleDropScreen() {
     }
   }, [timeLeft, showPreview, isGameOver]);
 
-  const handleCellPress = (cellId: number) => {
-    if (isGameOver || showPreview) return;
+  const handleCellPress = (cell: GridCell) => {
+    if (isGameOver || showPreview || cell.isClicked) return;
 
-    const expectedCellId = puzzle.sequence[currentStep];
+    const currentDisplayShape = puzzle.displaySequence[currentDisplayIndex];
 
-    if (cellId === expectedCellId) {
+    if (cell.shapeNumber === currentDisplayShape.shapeNumber) {
       setPuzzle((prev: any) => ({
         ...prev,
-        grid: prev.grid.map((cell: GridCell) =>
-          cell.id === cellId ? { ...cell, isCorrect: true } : cell
+        grid: prev.grid.map((c: GridCell) =>
+          c.id === cell.id ? { ...c, isClicked: true } : c
         ),
       }));
 
-      if (currentStep + 1 === puzzle.sequence.length) {
-        handleGameOver(true);
-      } else {
-        setCurrentStep(prev => prev + 1);
+      const newCorrectClicks = correctClicks + 1;
+      setCorrectClicks(newCorrectClicks);
+
+      const totalShapesNeeded = puzzle.grid.filter(
+        (c: GridCell) => c.shapeNumber === currentDisplayShape.shapeNumber
+      ).length;
+
+      const clickedShapesOfThisType = puzzle.grid.filter(
+        (c: GridCell) =>
+          c.shapeNumber === currentDisplayShape.shapeNumber &&
+          (c.isClicked || c.id === cell.id)
+      ).length;
+
+      if (clickedShapesOfThisType >= totalShapesNeeded) {
+        if (currentDisplayIndex + 1 >= puzzle.displaySequence.length) {
+          handleGameOver(true);
+        } else {
+          setCurrentDisplayIndex(prev => prev + 1);
+        }
       }
     } else {
       handleGameOver(false);
@@ -97,8 +113,8 @@ export default function PuzzleDropScreen() {
     );
   }
 
-  const gridCols = Math.sqrt(puzzle.gridSize);
-  const currentCell = puzzle.grid[puzzle.sequence[currentStep]];
+  const currentDisplayShape = puzzle.displaySequence[currentDisplayIndex];
+  const totalShapesInDisplay = puzzle.displaySequence.length;
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -106,17 +122,17 @@ export default function PuzzleDropScreen() {
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <ChevronLeft size={24} color={theme.colors.text} />
         </TouchableOpacity>
-        <Text style={[styles.title, { color: theme.colors.text }]}>Sequence Challenge</Text>
+        <Text style={[styles.title, { color: theme.colors.text }]}>Shape Matcher</Text>
         <View style={styles.placeholder} />
       </View>
 
       {showPreview ? (
         <View style={styles.previewContainer}>
           <Text style={[styles.previewTitle, { color: theme.colors.text }]}>
-            Memorize the Sequence!
+            Match the Shapes!
           </Text>
           <Text style={[styles.previewSubtitle, { color: theme.colors.textSecondary }]}>
-            Click shapes in order from 1 to {puzzle.gridSize}
+            Click shapes in the machine that match the display
           </Text>
           <View style={styles.previewTimerContainer}>
             <Clock size={48} color={theme.colors.primary} />
@@ -125,7 +141,7 @@ export default function PuzzleDropScreen() {
             </Text>
           </View>
           <Text style={[styles.previewHint, { color: theme.colors.textSecondary }]}>
-            Starting from top-left, go row by row
+            Find all matching shapes before time runs out!
           </Text>
         </View>
       ) : (
@@ -141,25 +157,27 @@ export default function PuzzleDropScreen() {
             <View style={[styles.statCard, { backgroundColor: theme.colors.cardBackground }]}>
               <Target size={20} color={theme.colors.success} />
               <Text style={[styles.statText, { color: theme.colors.text }]}>
-                {currentStep + 1} / {puzzle.gridSize}
+                {currentDisplayIndex + 1} / {totalShapesInDisplay}
               </Text>
             </View>
           </View>
 
-          {currentCell && (
-            <View style={[styles.indicatorCard, { backgroundColor: theme.colors.cardBackground }]}>
-              <Text style={[styles.indicatorLabel, { color: theme.colors.textSecondary }]}>
-                Click this shape next:
+          {currentDisplayShape && (
+            <View style={[styles.displayCard, { backgroundColor: theme.colors.cardBackground }]}>
+              <Text style={[styles.displayLabel, { color: theme.colors.textSecondary }]}>
+                Find and click all shapes like this:
               </Text>
-              <View style={styles.indicatorShapeContainer}>
-                {React.createElement(ShapeComponents[currentCell.shapeType], {
-                  size: 80,
-                  color: currentCell.color,
+              <View style={styles.displayShapeContainer}>
+                {React.createElement(ShapeComponents[currentDisplayShape.shapeType], {
+                  size: 100,
+                  color: currentDisplayShape.color,
                 })}
-                <View style={[styles.indicatorBadge, { backgroundColor: theme.colors.primary }]}>
-                  <Text style={styles.indicatorNumber}>#{currentStep + 1}</Text>
-                </View>
               </View>
+              <Text style={[styles.displayHint, { color: theme.colors.textSecondary }]}>
+                {puzzle.grid.filter((c: GridCell) =>
+                  c.shapeNumber === currentDisplayShape.shapeNumber && !c.isClicked
+                ).length} remaining
+              </Text>
             </View>
           )}
         </>
@@ -171,34 +189,30 @@ export default function PuzzleDropScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={[styles.gridContainer, { opacity: showPreview ? 0.5 : 1 }]}>
-          {puzzle.grid.map((cell: GridCell, index: number) => {
+          {puzzle.grid.map((cell: GridCell) => {
             const ShapeComponent = ShapeComponents[cell.shapeType];
-            const isClicked = cell.isCorrect;
+            const isClicked = cell.isClicked;
 
             return (
               <TouchableOpacity
                 key={cell.id}
-                onPress={() => handleCellPress(cell.id)}
+                onPress={() => handleCellPress(cell)}
                 disabled={isClicked || showPreview}
                 style={[
                   styles.gridCell,
                   {
                     backgroundColor: isClicked
-                      ? theme.colors.success + '40'
+                      ? theme.colors.border
                       : theme.colors.cardBackground,
-                    borderColor: isClicked ? theme.colors.success : theme.colors.border,
-                    opacity: isClicked ? 0.6 : 1,
+                    borderColor: isClicked ? theme.colors.border : theme.colors.border,
+                    opacity: isClicked ? 0.4 : 1,
                   },
                 ]}
               >
-                <ShapeComponent size={40} color={cell.color} />
-                {!showPreview && (
-                  <View style={[styles.cellNumber, { backgroundColor: theme.colors.secondary }]}>
-                    <Text style={[styles.cellNumberText, { color: theme.colors.textSecondary }]}>
-                      {index + 1}
-                    </Text>
-                  </View>
-                )}
+                <ShapeComponent
+                  size={40}
+                  color={isClicked ? theme.colors.textSecondary : cell.color}
+                />
               </TouchableOpacity>
             );
           })}
@@ -296,33 +310,24 @@ const createStyles = (theme: any) => StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  indicatorCard: {
+  displayCard: {
     marginHorizontal: 20,
     marginBottom: 16,
-    padding: 20,
+    padding: 24,
     borderRadius: 16,
     alignItems: 'center',
   },
-  indicatorLabel: {
+  displayLabel: {
     fontSize: 14,
-    marginBottom: 12,
+    marginBottom: 16,
     fontWeight: '500',
   },
-  indicatorShapeContainer: {
-    position: 'relative',
+  displayShapeContainer: {
+    marginBottom: 12,
   },
-  indicatorBadge: {
-    position: 'absolute',
-    top: -8,
-    right: -8,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  indicatorNumber: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: 'bold',
+  displayHint: {
+    fontSize: 13,
+    fontWeight: '600',
   },
   scrollView: {
     flex: 1,
@@ -344,19 +349,5 @@ const createStyles = (theme: any) => StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     position: 'relative',
-  },
-  cellNumber: {
-    position: 'absolute',
-    top: 2,
-    left: 2,
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  cellNumberText: {
-    fontSize: 9,
-    fontWeight: 'bold',
   },
 });
