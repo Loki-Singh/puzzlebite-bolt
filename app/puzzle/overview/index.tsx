@@ -1,14 +1,28 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Clock, Target, Trophy, Play, Shapes } from 'lucide-react-native';
+import { Clock, Target, Trophy, Play, Shapes, Brain } from 'lucide-react-native';
 import { ShapeComponents } from '@/components/puzzle/PuzzleShapes';
 import { generatePuzzle } from '@/lib/puzzleGenerator';
+import { supabase } from '@/lib/supabase';
+
+interface Puzzle {
+  id: string;
+  category: string;
+  type: string;
+  question: string;
+  answer: string;
+  difficulty: string;
+  hints: string[];
+  points: number;
+}
 
 export default function PuzzleOverview() {
   const { category } = useLocalSearchParams();
   const [isBlurred, setIsBlurred] = useState(true);
   const [previewPuzzle, setPreviewPuzzle] = useState<any>(null);
+  const [riddles, setRiddles] = useState<Puzzle[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const categoryNames: { [key: string]: string } = {
     ipl: 'IPL',
@@ -28,7 +42,27 @@ export default function PuzzleOverview() {
   useEffect(() => {
     const puzzle = generatePuzzle('easy');
     setPreviewPuzzle(puzzle);
-  }, []);
+    loadRiddles();
+  }, [category]);
+
+  const loadRiddles = async () => {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('puzzles')
+        .select('*')
+        .eq('category', category)
+        .order('difficulty', { ascending: true })
+        .limit(5);
+
+      if (error) throw error;
+      setRiddles(data || []);
+    } catch (error) {
+      console.error('Error loading riddles:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleStartPuzzle = () => {
     setIsBlurred(false);
@@ -36,7 +70,7 @@ export default function PuzzleOverview() {
   };
 
   return (
-    <View style={styles.container}>
+    <ScrollView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.categoryTitle}>{categoryNames[category as string] || 'PUZZLE'}</Text>
@@ -134,6 +168,36 @@ export default function PuzzleOverview() {
         </View>
       </View>
 
+      {/* Riddles Section */}
+      <View style={styles.riddlesCard}>
+        <View style={styles.riddlesHeader}>
+          <Brain size={24} color="#F59E0B" />
+          <Text style={styles.riddlesTitle}>Category Riddles</Text>
+        </View>
+
+        {loading ? (
+          <Text style={styles.loadingText}>Loading riddles...</Text>
+        ) : riddles.length > 0 ? (
+          riddles.map((riddle, index) => (
+            <View key={riddle.id} style={styles.riddleItem}>
+              <View style={styles.riddleHeader}>
+                <Text style={styles.riddleNumber}>Riddle #{index + 1}</Text>
+                <View style={[styles.difficultyBadge, { backgroundColor: riddle.difficulty === 'easy' ? '#10B981' : riddle.difficulty === 'medium' ? '#F59E0B' : '#EF4444' }]}>
+                  <Text style={styles.difficultyText}>{riddle.difficulty.toUpperCase()}</Text>
+                </View>
+              </View>
+              <Text style={styles.riddleQuestion}>{riddle.question}</Text>
+              <View style={styles.riddlePoints}>
+                <Trophy size={16} color="#F59E0B" />
+                <Text style={styles.pointsText}>{riddle.points} points</Text>
+              </View>
+            </View>
+          ))
+        ) : (
+          <Text style={styles.noRiddlesText}>No riddles available for this category yet.</Text>
+        )}
+      </View>
+
       {/* Start Button */}
       <View style={styles.buttonContainer}>
         <TouchableOpacity style={styles.startButton} onPress={handleStartPuzzle}>
@@ -141,7 +205,7 @@ export default function PuzzleOverview() {
           <Text style={styles.startButtonText}>Let's Do It!</Text>
         </TouchableOpacity>
       </View>
-    </View>
+    </ScrollView>
   );
 }
 
@@ -356,5 +420,80 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#FFFFFF',
     marginLeft: 8,
+  },
+  riddlesCard: {
+    backgroundColor: '#1A1A2E',
+    marginHorizontal: 16,
+    marginBottom: 20,
+    padding: 20,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#2D2D44',
+  },
+  riddlesHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  riddlesTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    marginLeft: 12,
+  },
+  loadingText: {
+    fontSize: 14,
+    color: '#94A3B8',
+    textAlign: 'center',
+    paddingVertical: 20,
+  },
+  noRiddlesText: {
+    fontSize: 14,
+    color: '#94A3B8',
+    textAlign: 'center',
+    paddingVertical: 20,
+  },
+  riddleItem: {
+    backgroundColor: '#2D2D44',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 12,
+  },
+  riddleHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  riddleNumber: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#A855F7',
+  },
+  difficultyBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  difficultyText: {
+    fontSize: 10,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+  },
+  riddleQuestion: {
+    fontSize: 14,
+    color: '#FFFFFF',
+    lineHeight: 20,
+    marginBottom: 8,
+  },
+  riddlePoints: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  pointsText: {
+    fontSize: 12,
+    color: '#F59E0B',
+    fontWeight: '600',
   },
 });
