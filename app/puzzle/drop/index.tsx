@@ -48,21 +48,24 @@ export default function PuzzleDropScreen() {
       prev.map(p => (p.id === pieceId ? { ...p, dropped: true } : p))
     );
 
-    const newCount = droppedCount + 1;
-    setDroppedCount(newCount);
+    setDroppedCount(prev => {
+      const newCount = prev + 1;
 
-    if (newCount === NUM_PIECES) {
-      setTimeout(() => {
-        setIsComplete(true);
-        const timeTaken = Math.floor((Date.now() - startTime) / 1000);
+      if (newCount === NUM_PIECES) {
         setTimeout(() => {
-          router.replace({
-            pathname: '/puzzle/success',
-            params: { timeTaken: timeTaken.toString() }
-          });
-        }, 1000);
-      }, 500);
-    }
+          setIsComplete(true);
+          const timeTaken = Math.floor((Date.now() - startTime) / 1000);
+          setTimeout(() => {
+            router.replace({
+              pathname: '/puzzle/success',
+              params: { timeTaken: timeTaken.toString() }
+            });
+          }, 1000);
+        }, 500);
+      }
+
+      return newCount;
+    });
   };
 
   const styles = createStyles(theme);

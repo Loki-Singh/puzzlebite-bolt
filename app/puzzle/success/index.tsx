@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import Animated, { FadeIn, FadeInDown, ZoomIn } from 'react-native-reanimated';
@@ -21,11 +21,7 @@ export default function PuzzleSuccess() {
   const [reward, setReward] = useState<Reward | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchRandomReward();
-  }, []);
-
-  const fetchRandomReward = async () => {
+  const fetchRandomReward = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('rewards')
@@ -51,7 +47,11 @@ export default function PuzzleSuccess() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [timeTaken]);
+
+  useEffect(() => {
+    fetchRandomReward();
+  }, [fetchRandomReward]);
 
   const styles = createStyles(theme);
 
