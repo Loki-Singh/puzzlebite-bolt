@@ -95,10 +95,10 @@ export default function MascotSelector() {
     }
   };
 
-  const backgroundColor = theme === 'dark' ? '#1F2937' : '#F9FAFB';
-  const cardBackground = theme === 'dark' ? '#374151' : '#FFFFFF';
-  const textColor = theme === 'dark' ? '#F9FAFB' : '#1F2937';
-  const borderColor = theme === 'dark' ? '#4B5563' : '#E5E7EB';
+  const backgroundColor = theme.colors.background;
+  const cardBackground = theme.colors.cardBackground;
+  const textColor = theme.colors.text;
+  const borderColor = theme.colors.border;
 
   return (
     <ScrollView style={[styles.container, { backgroundColor }]}>
@@ -166,7 +166,7 @@ export default function MascotSelector() {
           value={mascotName}
           onChangeText={setMascotName}
           placeholder={MASCOT_PERSONALITIES[selectedMascot].defaultName}
-          placeholderTextColor={theme === 'dark' ? '#9CA3AF' : '#6B7280'}
+          placeholderTextColor={theme.colors.textSecondary}
           maxLength={20}
         />
       </View>
