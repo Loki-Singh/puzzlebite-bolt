@@ -147,6 +147,8 @@ export default function PuzzleGame() {
     };
   });
 
+  const styles = createStyles(theme);
+
   if (!puzzle) {
     return (
       <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -160,7 +162,6 @@ export default function PuzzleGame() {
   }
 
   const progress = (currentStep / puzzle.correctSequence.length) * 100;
-  const styles = createStyles(theme);
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
