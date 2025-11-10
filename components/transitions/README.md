@@ -152,7 +152,54 @@ import { ExplosionTransition } from '@/components/transitions/ExplosionTransitio
 - Staggered timing (15ms delay per piece)
 - Total duration: ~1.5 seconds
 
-### 5. EmojiBurstTransition
+### 5. PuzzleBiteTransition ⭐ **SIGNATURE BRAND TRANSITION**
+
+Pieces fly in from all directions and assemble to form the "PuzzleBITE" logo word by word, with glowing effects and particle trails.
+
+**Usage:**
+```tsx
+import { PuzzleBiteTransition } from '@/components/transitions/PuzzleBiteTransition';
+
+<PuzzleBiteTransition
+  visible={showBrandTransition}
+  onAnimationComplete={() => console.log('PuzzleBITE assembled!')}
+  colors={['#F75564', '#FF6B7A', '#FF8E9E', '#FFDEA3', '#FFE9B8']}
+/>
+```
+
+**Props:**
+- `visible`: boolean - Controls animation visibility
+- `onAnimationComplete`: () => void - Callback when animation finishes
+- `colors`: string[] (optional) - Array of colors for puzzle pieces
+
+**Animation Details:**
+- 160 individual puzzle pieces (16 per letter)
+- Letter-by-letter reveal (P → u → z → z → l → e → B → I → T → E)
+- Each letter assembles from scattered pieces
+- Glowing edges on pieces during assembly
+- Particle trail background effect
+- Spring physics for natural movement
+- Scale bounce effect when complete
+- Staggered timing: 120ms per letter, 25ms per piece
+- Total duration: ~3 seconds
+
+**Creative Features:**
+- ✨ Dynamic glow intensity on pieces
+- 🌊 Floating particle trails in background
+- 🎨 Multi-color gradient across letters
+- 💎 Premium shadow and elevation effects
+- 🎯 Precise letter positioning
+- 🔄 Authentic puzzle piece look with rounded corners
+
+**Perfect For:**
+- App splash screen
+- Brand reveal moments
+- Achievement unlocks
+- Level completion
+- Game intro/outro
+- Special events
+
+### 6. EmojiBurstTransition
 
 Colorful emoji particles burst and fall like confetti, perfect for celebration moments.
 
@@ -210,6 +257,14 @@ import { EmojiBurstTransition } from '@/components/transitions/EmojiBurstTransit
 - High-energy moments
 - Success celebrations
 
+**PuzzleBiteTransition:** ⭐ **SIGNATURE**
+- App splash screen/intro
+- Major milestone celebrations
+- Brand reveal moments
+- Special event announcements
+- Game intro sequences
+- "Powered by PuzzleBITE" screens
+
 **EmojiBurstTransition:**
 - Victory screens
 - Reward animations
@@ -233,6 +288,10 @@ import { EmojiBurstTransition } from '@/components/transitions/EmojiBurstTransit
 />
 
 <ExplosionTransition
+  colors={['#F75564', '#FF6B7A', '#FF8E9E', '#FFDEA3', '#FFE9B8']}
+/>
+
+<PuzzleBiteTransition
   colors={['#F75564', '#FF6B7A', '#FF8E9E', '#FFDEA3', '#FFE9B8']}
 />
 ```

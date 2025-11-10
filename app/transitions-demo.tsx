@@ -5,8 +5,9 @@ import { PortalTransition } from '@/components/transitions/PortalTransition';
 import { PuzzlePieceTransition } from '@/components/transitions/PuzzlePieceTransition';
 import { MirrorFlipTransition } from '@/components/transitions/MirrorFlipTransition';
 import { ExplosionTransition } from '@/components/transitions/ExplosionTransition';
+import { PuzzleBiteTransition } from '@/components/transitions/PuzzleBiteTransition';
 import { EmojiBurstTransition } from '@/components/transitions/EmojiBurstTransition';
-import { Sparkles, Zap, FlipHorizontal, Star, Award } from 'lucide-react-native';
+import { Sparkles, Zap, FlipHorizontal, Star, Award, Puzzle } from 'lucide-react-native';
 
 export default function TransitionsDemoScreen() {
   const { theme } = useTheme();
@@ -40,6 +41,13 @@ export default function TransitionsDemoScreen() {
       description: 'Pieces explode and reassemble',
       icon: Star,
       color: '#FF6B7A',
+    },
+    {
+      id: 'puzzlebite',
+      name: 'PuzzleBITE Logo',
+      description: 'Pieces form PuzzleBITE word',
+      icon: Puzzle,
+      color: '#F75564',
     },
     {
       id: 'emoji',
@@ -155,6 +163,12 @@ export default function TransitionsDemoScreen() {
         onAnimationComplete={handleTransitionComplete}
         emojis={['🧩', '🎯', '⭐', '🎉', '✨', '💫', '🏆', '🎊']}
         count={40}
+      />
+
+      <PuzzleBiteTransition
+        visible={activeTransition === 'puzzlebite'}
+        onAnimationComplete={handleTransitionComplete}
+        colors={['#F75564', '#FF6B7A', '#FF8E9E', '#FFDEA3', '#FFE9B8']}
       />
     </SafeAreaView>
   );
