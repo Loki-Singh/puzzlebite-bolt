@@ -6,7 +6,7 @@ import { PuzzlePieceTransition } from '@/components/transitions/PuzzlePieceTrans
 import { MirrorFlipTransition } from '@/components/transitions/MirrorFlipTransition';
 import { ExplosionTransition } from '@/components/transitions/ExplosionTransition';
 import { EmojiBurstTransition } from '@/components/transitions/EmojiBurstTransition';
-import { Sparkles, Zap, Mirror, Bomb, PartyPopper } from 'lucide-react-native';
+import { Sparkles, Zap, FlipHorizontal, Star, Award } from 'lucide-react-native';
 
 export default function TransitionsDemoScreen() {
   const { theme } = useTheme();
@@ -31,21 +31,21 @@ export default function TransitionsDemoScreen() {
       id: 'mirror',
       name: 'Mirror Flip',
       description: '3D flip revealing back side',
-      icon: Mirror,
+      icon: FlipHorizontal,
       color: '#F75564',
     },
     {
       id: 'explosion',
       name: 'Explosion & Rebuild',
       description: 'Pieces explode and reassemble',
-      icon: Bomb,
+      icon: Star,
       color: '#FF6B7A',
     },
     {
       id: 'emoji',
       name: 'Emoji Burst',
       description: 'Emoji confetti celebration',
-      icon: PartyPopper,
+      icon: Award,
       color: '#FFDEA3',
     },
   ];
