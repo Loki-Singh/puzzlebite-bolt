@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Clock, Target, Trophy, Play, Shapes } from 'lucide-react-native';
-import { ShapeComponents } from '@/components/puzzle/PuzzleShapes';
-import { generatePuzzle } from '@/lib/puzzleGenerator';
+import { Clock, Target, Trophy, Play, Shapes, HelpCircle } from 'lucide-react-native';
+import { supabase } from '@/lib/supabase';
 
 export default function PuzzleOverview() {
   const { category } = useLocalSearchParams();
   const [isBlurred, setIsBlurred] = useState(true);
-  const [previewPuzzle, setPreviewPuzzle] = useState<any>(null);
+  const [puzzleCount, setPuzzleCount] = useState(0);
+  const [loading, setLoading] = useState(true);
 
   const categoryNames: { [key: string]: string } = {
     ipl: 'IPL',
@@ -26,85 +26,97 @@ export default function PuzzleOverview() {
   };
 
   useEffect(() => {
-    const puzzle = generatePuzzle('easy');
-    setPreviewPuzzle(puzzle);
-  }, []);
+    async function fetchPuzzleCount() {
+      try {
+        const { data, error } = await supabase
+          .from('puzzles')
+          .select('id', { count: 'exact', head: true })
+          .eq('category', category)
+          .eq('type', 'mcq');
+
+        if (error) throw error;
+        setPuzzleCount(data?.length || 0);
+      } catch (error) {
+        console.error('Error fetching puzzle count:', error);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchPuzzleCount();
+  }, [category]);
 
   const handleStartPuzzle = () => {
     setIsBlurred(false);
     router.push(`/puzzle/game?category=${category}`);
   };
 
+  if (loading) {
+    return (
+      <View style={[styles.container, styles.centerContent]}>
+        <ActivityIndicator size="large" color="#A855F7" />
+        <Text style={styles.loadingText}>Loading challenge...</Text>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.categoryTitle}>{categoryNames[category as string] || 'PUZZLE'}</Text>
-        <Text style={styles.subtitle}>Category Challenge</Text>
+        <Text style={styles.subtitle}>Quiz Challenge</Text>
       </View>
 
       {/* Challenge Details */}
       <View style={styles.challengeCard}>
         <View style={styles.challengeHeader}>
           <Trophy size={32} color="#F59E0B" />
-          <Text style={styles.challengeTitle}>Puzzle Challenge</Text>
+          <Text style={styles.challengeTitle}>MCQ Challenge</Text>
         </View>
 
         <Text style={styles.challengeDescription}>
-          Match shapes in the correct sequence to complete the formation! Fill all slots within the time limit to win your reward.
+          Test your knowledge with multiple choice questions! Answer correctly within the time limit to earn points and rewards.
         </Text>
 
         <View style={styles.challengeStats}>
           <View style={styles.statItem}>
-            <Shapes size={20} color="#3B82F6" />
-            <Text style={styles.statNumber}>4</Text>
-            <Text style={styles.statLabel}>Shapes</Text>
+            <HelpCircle size={20} color="#3B82F6" />
+            <Text style={styles.statNumber}>{puzzleCount}</Text>
+            <Text style={styles.statLabel}>Questions</Text>
           </View>
 
           <View style={styles.statItem}>
             <Clock size={20} color="#EF4444" />
-            <Text style={styles.statNumber}>60</Text>
+            <Text style={styles.statNumber}>30</Text>
             <Text style={styles.statLabel}>Seconds</Text>
           </View>
 
           <View style={styles.statItem}>
             <Trophy size={20} color="#10B981" />
-            <Text style={styles.statNumber}>100%</Text>
-            <Text style={styles.statLabel}>Accuracy</Text>
+            <Text style={styles.statNumber}>100+</Text>
+            <Text style={styles.statLabel}>Points</Text>
           </View>
         </View>
       </View>
 
-      {/* Preview Puzzle */}
+      {/* Preview Card */}
       <View style={styles.previewCard}>
-        <Text style={styles.previewTitle}>Puzzle Preview</Text>
+        <Text style={styles.previewTitle}>Challenge Preview</Text>
 
         <View style={[styles.puzzleContainer, isBlurred && styles.blurredContainer]}>
-          {previewPuzzle && (
-            <View style={styles.previewGrid}>
-              {Array.from({ length: previewPuzzle.rows }).map((_, rowIndex) => (
-                <View key={rowIndex} style={styles.previewRow}>
-                  {Array.from({ length: previewPuzzle.cols }).map((_, colIndex) => {
-                    const slot = previewPuzzle.slots.find((s: any) => s.row === rowIndex && s.col === colIndex);
-                    if (!slot) {
-                      return <View key={colIndex} style={styles.previewEmptyCell} />;
-                    }
-                    const ShapeComponent = ShapeComponents[slot.shapeType];
-                    return (
-                      <View key={colIndex} style={styles.previewSlot}>
-                        <ShapeComponent size={40} color="#555" />
-                      </View>
-                    );
-                  })}
-                </View>
-              ))}
+          {!isBlurred ? (
+            <View style={styles.previewContent}>
+              <HelpCircle size={64} color="#A855F7" />
+              <Text style={styles.previewText}>Multiple Choice Questions</Text>
+              <Text style={styles.previewSubtext}>
+                Answer questions from {categoryNames[category as string] || 'various topics'}
+              </Text>
             </View>
-          )}
-
-          {isBlurred && (
+          ) : (
             <View style={styles.blurOverlay}>
               <TouchableOpacity style={styles.revealButton} onPress={() => setIsBlurred(false)}>
-                <Text style={styles.revealButtonText}>Preview Puzzle</Text>
+                <Text style={styles.revealButtonText}>Preview Challenge</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -126,11 +138,11 @@ export default function PuzzleOverview() {
       <View style={styles.rulesCard}>
         <Text style={styles.rulesTitle}>Challenge Rules</Text>
         <View style={styles.rulesList}>
-          <Text style={styles.ruleItem}>• Select shapes and place them in the correct slots</Text>
-          <Text style={styles.ruleItem}>• Follow the numerical sequence (1, 2, 3, 4...)</Text>
-          <Text style={styles.ruleItem}>• Match the correct shape to the correct position</Text>
-          <Text style={styles.ruleItem}>• Complete within 60 seconds</Text>
-          <Text style={styles.ruleItem}>• Wrong placement ends the challenge</Text>
+          <Text style={styles.ruleItem}>• Read each question carefully</Text>
+          <Text style={styles.ruleItem}>• Select the correct answer from 4 options</Text>
+          <Text style={styles.ruleItem}>• Use hints if you get stuck (costs points)</Text>
+          <Text style={styles.ruleItem}>• Answer within 30 seconds per question</Text>
+          <Text style={styles.ruleItem}>• Wrong answer ends the challenge</Text>
         </View>
       </View>
 
@@ -149,6 +161,15 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#0F0F23',
+  },
+  centerContent: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    marginTop: 16,
   },
   header: {
     backgroundColor: '#1A1A2E',
@@ -241,26 +262,22 @@ const styles = StyleSheet.create({
   blurredContainer: {
     backgroundColor: '#16213E',
   },
-  previewGrid: {
-    gap: 8,
-  },
-  previewRow: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  previewEmptyCell: {
-    width: 60,
-    height: 60,
-  },
-  previewSlot: {
-    width: 60,
-    height: 60,
-    backgroundColor: '#1A1A2E',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#444',
-    justifyContent: 'center',
+  previewContent: {
     alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  previewText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  previewSubtext: {
+    fontSize: 14,
+    color: '#94A3B8',
+    textAlign: 'center',
   },
   blurOverlay: {
     position: 'absolute',
