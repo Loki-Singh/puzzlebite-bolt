@@ -10,6 +10,7 @@ interface Puzzle {
   type: string;
   question: string;
   answer: string;
+  options: string[];
   difficulty: string;
   hints: string[];
   points: number;
@@ -20,7 +21,7 @@ export default function PuzzleGame() {
   const [puzzle, setPuzzle] = useState<Puzzle | null>(null);
   const [loading, setLoading] = useState(true);
   const [timeLeft, setTimeLeft] = useState(60);
-  const [userAnswer, setUserAnswer] = useState('');
+  const [selectedOption, setSelectedOption] = useState('');
   const [hintsUsed, setHintsUsed] = useState(0);
   const [showHint, setShowHint] = useState(false);
   const [gameEnded, setGameEnded] = useState(false);
@@ -90,12 +91,9 @@ export default function PuzzleGame() {
   };
 
   const handleSubmit = () => {
-    if (!puzzle) return;
+    if (!puzzle || !selectedOption) return;
 
-    const normalizedUserAnswer = userAnswer.trim().toLowerCase();
-    const normalizedCorrectAnswer = puzzle.answer.trim().toLowerCase();
-
-    if (normalizedUserAnswer === normalizedCorrectAnswer) {
+    if (selectedOption === puzzle.answer) {
       const finalPoints = Math.max(puzzle.points - (hintsUsed * 20), 50);
       router.replace({
         pathname: '/puzzle/success',
@@ -169,22 +167,43 @@ export default function PuzzleGame() {
           </View>
         )}
 
-        {/* Answer Input */}
+        {/* Answer Options */}
         <View style={styles.answerCard}>
-          <Text style={styles.answerLabel}>Your Answer</Text>
-          <TextInput
-            style={styles.answerInput}
-            placeholder="Type your answer here..."
-            placeholderTextColor="#64748B"
-            value={userAnswer}
-            onChangeText={setUserAnswer}
-            autoCapitalize="words"
-          />
+          <Text style={styles.answerLabel}>Choose Your Answer</Text>
+
+          {puzzle.options && puzzle.options.map((option, index) => {
+            const optionLetter = String.fromCharCode(65 + index);
+            return (
+              <TouchableOpacity
+                key={index}
+                style={[
+                  styles.optionButton,
+                  selectedOption === optionLetter && styles.optionButtonSelected
+                ]}
+                onPress={() => setSelectedOption(optionLetter)}
+              >
+                <View style={[
+                  styles.optionCircle,
+                  selectedOption === optionLetter && styles.optionCircleSelected
+                ]}>
+                  {selectedOption === optionLetter && (
+                    <View style={styles.optionCircleInner} />
+                  )}
+                </View>
+                <Text style={[
+                  styles.optionText,
+                  selectedOption === optionLetter && styles.optionTextSelected
+                ]}>
+                  {option}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
 
           <TouchableOpacity
-            style={[styles.submitButton, !userAnswer.trim() && styles.submitButtonDisabled]}
+            style={[styles.submitButton, !selectedOption && styles.submitButtonDisabled]}
             onPress={handleSubmit}
-            disabled={!userAnswer.trim()}
+            disabled={!selectedOption}
           >
             <CheckCircle size={20} color="#FFFFFF" />
             <Text style={styles.submitButtonText}>Submit Answer</Text>
@@ -349,16 +368,50 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     color: '#FFFFFF',
-    marginBottom: 12,
+    marginBottom: 16,
   },
-  answerInput: {
+  optionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: '#2D2D44',
     borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 16,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 2,
+    borderColor: '#2D2D44',
+  },
+  optionButtonSelected: {
+    borderColor: '#A855F7',
+    backgroundColor: '#1E1535',
+  },
+  optionCircle: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#64748B',
+    marginRight: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  optionCircleSelected: {
+    borderColor: '#A855F7',
+  },
+  optionCircleInner: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#A855F7',
+  },
+  optionText: {
+    fontSize: 15,
     color: '#FFFFFF',
-    marginBottom: 16,
+    flex: 1,
+    lineHeight: 20,
+  },
+  optionTextSelected: {
+    color: '#FFFFFF',
+    fontWeight: '600',
   },
   submitButton: {
     backgroundColor: '#10B981',

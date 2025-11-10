@@ -10,6 +10,7 @@ interface Puzzle {
   type: string;
   question: string;
   answer: string;
+  options: string[];
   difficulty: string;
   hints: string[];
   points: number;
@@ -107,11 +108,11 @@ export default function PuzzleOverview() {
       <View style={styles.challengeCard}>
         <View style={styles.challengeHeader}>
           <Trophy size={32} color="#F59E0B" />
-          <Text style={styles.challengeTitle}>Riddle Challenge</Text>
+          <Text style={styles.challengeTitle}>Quiz Challenge</Text>
         </View>
 
         <Text style={styles.challengeDescription}>
-          Test your knowledge about {categoryNames[category as string]}! Read the riddle carefully and try to solve it within the time limit.
+          Test your knowledge about {categoryNames[category as string]}! Answer the multiple choice question within the time limit.
         </Text>
 
         <View style={styles.challengeStats}>
@@ -143,14 +144,23 @@ export default function PuzzleOverview() {
           {!showHint ? (
             <View style={styles.blurOverlay}>
               <Brain size={48} color="#A855F7" />
-              <Text style={styles.blurText}>Riddle is hidden</Text>
+              <Text style={styles.blurText}>Question is hidden</Text>
               <TouchableOpacity style={styles.revealButton} onPress={() => setShowHint(true)}>
-                <Text style={styles.revealButtonText}>Preview Riddle</Text>
+                <Text style={styles.revealButtonText}>Preview Question</Text>
               </TouchableOpacity>
             </View>
           ) : (
             <View style={styles.riddlePreview}>
               <Text style={styles.riddleText}>{puzzle.question}</Text>
+              {puzzle.options && puzzle.options.length > 0 && (
+                <View style={styles.optionsPreview}>
+                  {puzzle.options.map((option, index) => (
+                    <Text key={index} style={styles.optionPreviewText}>
+                      {option}
+                    </Text>
+                  ))}
+                </View>
+              )}
             </View>
           )}
         </View>
@@ -177,11 +187,11 @@ export default function PuzzleOverview() {
       <View style={styles.rulesCard}>
         <Text style={styles.rulesTitle}>Challenge Rules</Text>
         <View style={styles.rulesList}>
-          <Text style={styles.ruleItem}>• Read the riddle carefully</Text>
-          <Text style={styles.ruleItem}>• Type your answer in the text field</Text>
-          <Text style={styles.ruleItem}>• You have 60 seconds to solve it</Text>
+          <Text style={styles.ruleItem}>• Read the question carefully</Text>
+          <Text style={styles.ruleItem}>• Choose one answer from 4 options</Text>
+          <Text style={styles.ruleItem}>• You have 60 seconds to answer</Text>
           <Text style={styles.ruleItem}>• Use hints if you get stuck (costs points)</Text>
-          <Text style={styles.ruleItem}>• Answer must match exactly</Text>
+          <Text style={styles.ruleItem}>• Only one answer is correct</Text>
         </View>
       </View>
 
@@ -340,6 +350,16 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     lineHeight: 24,
     textAlign: 'center',
+    marginBottom: 16,
+  },
+  optionsPreview: {
+    width: '100%',
+    gap: 8,
+  },
+  optionPreviewText: {
+    fontSize: 14,
+    color: '#94A3B8',
+    lineHeight: 20,
   },
   difficultyIndicator: {
     flexDirection: 'row',
