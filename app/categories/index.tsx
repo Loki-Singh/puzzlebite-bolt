@@ -15,6 +15,13 @@ interface Category {
 export default function Categories() {
   const categories: Category[] = [
     {
+      id: 'games',
+      name: 'GAMES',
+      icon: <Gamepad2 size={32} color="#FFFFFF" />,
+      color: '#A855F7',
+      description: 'Word & Logic Games',
+    },
+    {
       id: 'ipl',
       name: 'IPL',
       icon: <Trophy size={32} color="#FFFFFF" />,
@@ -110,7 +117,11 @@ export default function Categories() {
 
   const handlePortalComplete = () => {
     if (selectedCategory) {
-      router.push(`/puzzle/overview?category=${selectedCategory}`);
+      if (selectedCategory === 'games') {
+        router.push('/games');
+      } else {
+        router.push(`/puzzle/overview?category=${selectedCategory}`);
+      }
       setShowPortal(false);
       setSelectedCategory(null);
     }
