@@ -5,6 +5,7 @@ import { ArrowLeft, RotateCcw, HelpCircle } from 'lucide-react-native';
 import Animated, { FadeIn, FadeInDown, ZoomIn } from 'react-native-reanimated';
 import { useTheme } from '@/contexts/ThemeContext';
 import { supabase } from '@/lib/supabase';
+import { GameOverModal } from '@/components/wordle/GameOverModal';
 
 type LetterState = 'correct' | 'present' | 'absent' | 'empty';
 
@@ -105,14 +106,8 @@ export default function Wordle() {
     if (currentGuess === targetWord) {
       setWon(true);
       setGameOver(true);
-      setTimeout(() => {
-        Alert.alert('Congratulations!', `You won in ${newGuesses.length} ${newGuesses.length === 1 ? 'try' : 'tries'}!`);
-      }, 500);
     } else if (newGuesses.length >= MAX_ATTEMPTS) {
       setGameOver(true);
-      setTimeout(() => {
-        Alert.alert('Game Over', `The word was: ${targetWord}`);
-      }, 500);
     }
 
     setCurrentGuess('');
@@ -335,6 +330,15 @@ export default function Wordle() {
           ))}
         </View>
       </View>
+
+      <GameOverModal
+        visible={gameOver}
+        won={won}
+        attempts={guesses.length}
+        targetWord={targetWord}
+        onPlayAgain={resetGame}
+        onGoHome={() => router.push('/games')}
+      />
     </View>
   );
 }
