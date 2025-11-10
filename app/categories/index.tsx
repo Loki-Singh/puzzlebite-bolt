@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import { Gamepad2, Music, Film, Globe, Trophy, BookOpen, Zap, Beaker, Heart, Tv } from 'lucide-react-native';
+import { PortalTransition } from '@/components/transitions/PortalTransition';
 
 interface Category {
   id: string;
@@ -100,17 +101,29 @@ export default function Categories() {
   ];
 
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [showPortal, setShowPortal] = useState(false);
 
   const handleCategorySelect = (categoryId: string) => {
     setSelectedCategory(categoryId);
-    // Navigate to puzzle overview after a brief selection highlight
-    setTimeout(() => {
-      router.push(`/puzzle/overview?category=${categoryId}`);
-    }, 200);
+    setShowPortal(true);
+  };
+
+  const handlePortalComplete = () => {
+    if (selectedCategory) {
+      router.push(`/puzzle/overview?category=${selectedCategory}`);
+      setShowPortal(false);
+      setSelectedCategory(null);
+    }
   };
 
   return (
     <View style={styles.container}>
+      <PortalTransition
+        visible={showPortal}
+        onAnimationComplete={handlePortalComplete}
+        type="open"
+      />
+
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.title}>Choose Your Challenge</Text>

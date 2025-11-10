@@ -3,12 +3,14 @@ import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'rea
 import { router, useLocalSearchParams } from 'expo-router';
 import { Clock, Target, Trophy, Play, Shapes, HelpCircle } from 'lucide-react-native';
 import { supabase } from '@/lib/supabase';
+import { PuzzlePieceTransition } from '@/components/transitions/PuzzlePieceTransition';
 
 export default function PuzzleOverview() {
   const { category } = useLocalSearchParams();
   const [isBlurred, setIsBlurred] = useState(true);
   const [puzzleCount, setPuzzleCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [showPuzzleTransition, setShowPuzzleTransition] = useState(false);
 
   const categoryNames: { [key: string]: string } = {
     ipl: 'IPL',
@@ -48,7 +50,12 @@ export default function PuzzleOverview() {
 
   const handleStartPuzzle = () => {
     setIsBlurred(false);
+    setShowPuzzleTransition(true);
+  };
+
+  const handlePuzzleTransitionComplete = () => {
     router.push(`/puzzle/game?category=${category}`);
+    setShowPuzzleTransition(false);
   };
 
   if (loading) {
@@ -62,6 +69,12 @@ export default function PuzzleOverview() {
 
   return (
     <View style={styles.container}>
+      <PuzzlePieceTransition
+        visible={showPuzzleTransition}
+        onAnimationComplete={handlePuzzleTransitionComplete}
+        type="assemble"
+      />
+
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.categoryTitle}>{categoryNames[category as string] || 'PUZZLE'}</Text>

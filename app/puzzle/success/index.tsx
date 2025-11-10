@@ -5,6 +5,7 @@ import Animated, { FadeIn, FadeInDown, ZoomIn } from 'react-native-reanimated';
 import { Gift, Sparkles, Home } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { supabase } from '@/lib/supabase';
+import { PuzzlePieceTransition } from '@/components/transitions/PuzzlePieceTransition';
 
 interface Reward {
   id: string;
@@ -20,6 +21,7 @@ export default function PuzzleSuccess() {
   const timeTaken = params.timeTaken as string;
   const [reward, setReward] = useState<Reward | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showEnterTransition, setShowEnterTransition] = useState(true);
 
   const fetchRandomReward = useCallback(async () => {
     try {
@@ -69,6 +71,12 @@ export default function PuzzleSuccess() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <PuzzlePieceTransition
+        visible={showEnterTransition}
+        onAnimationComplete={() => setShowEnterTransition(false)}
+        type="assemble"
+      />
+
       <Animated.View entering={FadeIn.duration(600)} style={styles.content}>
         <Animated.View entering={ZoomIn.delay(200).springify()} style={styles.iconContainer}>
           <View style={[styles.iconCircle, { backgroundColor: theme.colors.primary }]}>
