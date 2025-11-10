@@ -1,234 +1,206 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Clock, Lightbulb, CheckCircle } from 'lucide-react-native';
-import { supabase } from '@/lib/supabase';
+import { Clock, ChevronRight, CircleCheck as CheckCircle } from 'lucide-react-native';
 
-interface Puzzle {
-  id: string;
-  category: string;
-  type: string;
+interface Question {
+  id: number;
   question: string;
-  answer: string;
   options: string[];
-  difficulty: string;
-  hints: string[];
-  points: number;
+  correctAnswer: number;
 }
 
 export default function PuzzleGame() {
-  const { category, puzzleId } = useLocalSearchParams();
-  const [puzzle, setPuzzle] = useState<Puzzle | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [timeLeft, setTimeLeft] = useState(60);
-  const [selectedOption, setSelectedOption] = useState('');
-  const [hintsUsed, setHintsUsed] = useState(0);
-  const [showHint, setShowHint] = useState(false);
-  const [gameEnded, setGameEnded] = useState(false);
+  const { category } = useLocalSearchParams();
 
-  const categoryNames: { [key: string]: string } = {
-    ipl: 'IPL',
-    fifa: 'FIFA',
-    music: 'MUSIC',
-    hollywood: 'HOLLYWOOD',
-    bollywood: 'BOLLYWOOD',
-    history: 'HISTORY',
-    mythology: 'MYTHOLOGY',
-    science: 'SCIENCE',
-    anime: 'ANIME',
-    cartoon: 'CARTOON',
-    geography: 'GEOGRAPHY',
-    technology: 'TECHNOLOGY',
-  };
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+  const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
+  const [timeLeft, setTimeLeft] = useState(120);
+  const [score, setScore] = useState(0);
+  const [isGameActive, setIsGameActive] = useState(true);
+
+  const questions: Question[] = [
+    {
+      id: 1,
+      question: "Who holds the record for the highest individual score in Test cricket by an Indian batsman?",
+      options: ["Virat Kohli", "Sachin Tendulkar", "Karun Nair", "Rohit Sharma"],
+      correctAnswer: 2
+    },
+    {
+      id: 2,
+      question: "In which year was the first IPL tournament held?",
+      options: ["2007", "2008", "2009", "2010"],
+      correctAnswer: 1
+    },
+    {
+      id: 3,
+      question: "Which team has won the most IPL titles?",
+      options: ["Mumbai Indians", "Chennai Super Kings", "Kolkata Knight Riders", "Royal Challengers Bangalore"],
+      correctAnswer: 0
+    },
+    {
+      id: 4,
+      question: "Who is known as 'Captain Cool' in Indian cricket?",
+      options: ["Virat Kohli", "Rohit Sharma", "MS Dhoni", "Hardik Pandya"],
+      correctAnswer: 2
+    },
+    {
+      id: 5,
+      question: "Which bowler has taken the most wickets in IPL history?",
+      options: ["Lasith Malinga", "Amit Mishra", "Dwayne Bravo", "Yuzvendra Chahal"],
+      correctAnswer: 2
+    }
+  ];
 
   useEffect(() => {
-    fetchPuzzle();
-  }, [puzzleId]);
+    let timer: NodeJS.Timeout;
 
-  useEffect(() => {
-    if (timeLeft > 0 && !gameEnded) {
-      const timer = setTimeout(() => setTimeLeft(timeLeft - 1), 1000);
-      return () => clearTimeout(timer);
-    } else if (timeLeft === 0 && !gameEnded) {
-      handleTimeout();
-    }
-  }, [timeLeft, gameEnded]);
-
-  const fetchPuzzle = async () => {
-    try {
-      setLoading(true);
-      const { data, error } = await supabase
-        .from('puzzles')
-        .select('*')
-        .eq('id', puzzleId)
-        .maybeSingle();
-
-      if (error) {
-        console.error('Error fetching puzzle:', error);
-        return;
-      }
-
-      if (data) {
-        setPuzzle(data);
-      }
-    } catch (error) {
-      console.error('Error:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleTimeout = () => {
-    setGameEnded(true);
-    router.replace('/puzzle/timeout');
-  };
-
-  const handleUseHint = () => {
-    if (puzzle && hintsUsed < puzzle.hints.length) {
-      setHintsUsed(hintsUsed + 1);
-      setShowHint(true);
-    }
-  };
-
-  const handleSubmit = () => {
-    if (!puzzle || !selectedOption) return;
-
-    if (selectedOption === puzzle.answer) {
-      const finalPoints = Math.max(puzzle.points - (hintsUsed * 20), 50);
-      router.replace({
-        pathname: '/puzzle/success',
-        params: {
-          category: category as string,
-          points: finalPoints.toString(),
-          timeLeft: timeLeft.toString(),
-        },
+    if (isGameActive) {
+      timer = setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev <= 1) {
+            setIsGameActive(false);
+          router.push('/puzzle/timeout');
+          return 0;
+        }
+        return prev - 1;
       });
+      }, 1000);
+    }
+
+    return () => {
+      if (timer) {
+        clearInterval(timer);
+      }
+    };
+  }, [isGameActive]);
+
+  useEffect(() => {
+    return () => {
+      setIsGameActive(false);
+    };
+  }, []);
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const handleAnswerSelect = (answerIndex: number) => {
+    setSelectedAnswer(answerIndex);
+  };
+
+  const handleNextQuestion = () => {
+    if (selectedAnswer === null) {
+      Alert.alert('Please select an answer', 'You must choose an option before proceeding.');
+      return;
+    }
+
+    const currentQuestion = questions[currentQuestionIndex];
+
+    if (selectedAnswer !== currentQuestion.correctAnswer) {
+      setIsGameActive(false);
+      router.push('/puzzle/failed');
+      return;
+    }
+
+    setScore(score + 1);
+
+    if (currentQuestionIndex === questions.length - 1) {
+      setIsGameActive(false);
+      router.push('/puzzle/success');
     } else {
-      router.replace('/puzzle/failed');
+      setCurrentQuestionIndex(currentQuestionIndex + 1);
+      setSelectedAnswer(null);
     }
   };
 
-  if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#A855F7" />
-        <Text style={styles.loadingText}>Loading puzzle...</Text>
-      </View>
-    );
-  }
-
-  if (!puzzle) {
-    return (
-      <View style={styles.errorContainer}>
-        <Text style={styles.errorText}>Puzzle not found</Text>
-      </View>
-    );
-  }
+  const currentQuestion = questions[currentQuestionIndex];
+  const progress = ((currentQuestionIndex + 1) / questions.length) * 100;
 
   return (
     <View style={styles.container}>
-      {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.categoryTitle}>{categoryNames[category as string]}</Text>
         <View style={styles.timerContainer}>
           <Clock size={20} color="#EF4444" />
-          <Text style={styles.timerText}>{timeLeft}s</Text>
+          <Text style={styles.timerText}>{formatTime(timeLeft)}</Text>
+        </View>
+
+        <View style={styles.progressContainer}>
+          <Text style={styles.progressText}>
+            {currentQuestionIndex + 1} of {questions.length}
+          </Text>
+          <View style={styles.progressBar}>
+            <View style={[styles.progressFill, { width: `${progress}%` }]} />
+          </View>
         </View>
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Puzzle Question */}
-        <View style={styles.puzzleCard}>
-          <Text style={styles.puzzleTitle}>Solve the Riddle</Text>
-          <Text style={styles.puzzleQuestion}>{puzzle.question}</Text>
+      <View style={styles.questionCard}>
+        <View style={styles.questionHeader}>
+          <View style={styles.questionNumber}>
+            <Text style={styles.questionNumberText}>{currentQuestionIndex + 1}</Text>
+          </View>
+          <Text style={styles.questionTitle}>Question {currentQuestionIndex + 1}</Text>
         </View>
 
-        {/* Hints Section */}
-        {puzzle.hints && puzzle.hints.length > 0 && (
-          <View style={styles.hintsCard}>
-            <View style={styles.hintsHeader}>
-              <Lightbulb size={20} color="#F59E0B" />
-              <Text style={styles.hintsTitle}>Need a Hint?</Text>
-            </View>
+        <Text style={styles.questionText}>{currentQuestion.question}</Text>
+      </View>
 
-            {showHint && hintsUsed > 0 ? (
-              <View style={styles.hintContent}>
-                <Text style={styles.hintText}>{puzzle.hints[hintsUsed - 1]}</Text>
-              </View>
-            ) : null}
-
-            {hintsUsed < puzzle.hints.length && (
-              <TouchableOpacity style={styles.hintButton} onPress={handleUseHint}>
-                <Text style={styles.hintButtonText}>
-                  Use Hint ({hintsUsed}/{puzzle.hints.length}) - Costs 20 points
-                </Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        )}
-
-        {/* Answer Options */}
-        <View style={styles.answerCard}>
-          <Text style={styles.answerLabel}>Choose Your Answer</Text>
-
-          {puzzle.options && puzzle.options.map((option, index) => {
-            const optionLetter = String.fromCharCode(65 + index);
-            return (
-              <TouchableOpacity
-                key={index}
-                style={[
-                  styles.optionButton,
-                  selectedOption === optionLetter && styles.optionButtonSelected
-                ]}
-                onPress={() => setSelectedOption(optionLetter)}
-              >
-                <View style={[
-                  styles.optionCircle,
-                  selectedOption === optionLetter && styles.optionCircleSelected
-                ]}>
-                  {selectedOption === optionLetter && (
-                    <View style={styles.optionCircleInner} />
-                  )}
-                </View>
-                <Text style={[
-                  styles.optionText,
-                  selectedOption === optionLetter && styles.optionTextSelected
-                ]}>
-                  {option}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-
+      <View style={styles.optionsContainer}>
+        {currentQuestion.options.map((option, index) => (
           <TouchableOpacity
-            style={[styles.submitButton, !selectedOption && styles.submitButtonDisabled]}
-            onPress={handleSubmit}
-            disabled={!selectedOption}
+            key={index}
+            style={[
+              styles.optionButton,
+              selectedAnswer === index && styles.optionButtonSelected
+            ]}
+            onPress={() => handleAnswerSelect(index)}
           >
-            <CheckCircle size={20} color="#FFFFFF" />
-            <Text style={styles.submitButtonText}>Submit Answer</Text>
+            <View style={styles.optionContent}>
+              <View style={[
+                styles.optionIndicator,
+                selectedAnswer === index && styles.optionIndicatorSelected
+              ]}>
+                {selectedAnswer === index && <CheckCircle size={16} color="#FFFFFF" />}
+              </View>
+              <Text style={[
+                styles.optionText,
+                selectedAnswer === index && styles.optionTextSelected
+              ]}>
+                {option}
+              </Text>
+            </View>
           </TouchableOpacity>
-        </View>
+        ))}
+      </View>
 
-        {/* Points Info */}
-        <View style={styles.pointsCard}>
-          <Text style={styles.pointsTitle}>Points Breakdown</Text>
-          <View style={styles.pointsRow}>
-            <Text style={styles.pointsLabel}>Base Points:</Text>
-            <Text style={styles.pointsValue}>{puzzle.points}</Text>
-          </View>
-          <View style={styles.pointsRow}>
-            <Text style={styles.pointsLabel}>Hints Used:</Text>
-            <Text style={styles.pointsValue}>-{hintsUsed * 20}</Text>
-          </View>
-          <View style={[styles.pointsRow, styles.pointsTotal]}>
-            <Text style={styles.pointsTotalLabel}>Current Total:</Text>
-            <Text style={styles.pointsTotalValue}>
-              {Math.max(puzzle.points - (hintsUsed * 20), 50)}
-            </Text>
-          </View>
-        </View>
-      </ScrollView>
+      <View style={styles.buttonContainer}>
+        <TouchableOpacity
+          style={[
+            styles.nextButton,
+            selectedAnswer === null && styles.nextButtonDisabled
+          ]}
+          onPress={handleNextQuestion}
+          disabled={selectedAnswer === null}
+        >
+          <Text style={[
+            styles.nextButtonText,
+            selectedAnswer === null && styles.nextButtonTextDisabled
+          ]}>
+            {currentQuestionIndex === questions.length - 1 ? 'Finish' : 'Next'}
+          </Text>
+          <ChevronRight
+            size={20}
+            color={selectedAnswer === null ? '#64748B' : '#FFFFFF'}
+          />
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.scoreContainer}>
+        <Text style={styles.scoreText}>Score: {score}/{questions.length}</Text>
+      </View>
     </View>
   );
 }
@@ -238,241 +210,161 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#0F0F23',
   },
-  loadingContainer: {
-    flex: 1,
-    backgroundColor: '#0F0F23',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    color: '#FFFFFF',
-    marginTop: 16,
-    fontSize: 16,
-  },
-  errorContainer: {
-    flex: 1,
-    backgroundColor: '#0F0F23',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  errorText: {
-    color: '#EF4444',
-    fontSize: 16,
-    textAlign: 'center',
-  },
   header: {
-    backgroundColor: '#1A1A2E',
     paddingHorizontal: 20,
     paddingTop: 60,
-    paddingBottom: 20,
+    paddingBottom: 16,
+    backgroundColor: '#1A1A2E',
     borderBottomLeftRadius: 24,
     borderBottomRightRadius: 24,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  categoryTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
   },
   timerContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#2D2D44',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
+    justifyContent: 'center',
+    marginBottom: 12,
   },
   timerText: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: 'bold',
+    marginLeft: 8,
     color: '#EF4444',
-    marginLeft: 6,
   },
-  content: {
-    flex: 1,
-    padding: 16,
+  progressContainer: {
+    alignItems: 'center',
   },
-  puzzleCard: {
-    backgroundColor: '#1A1A2E',
+  progressText: {
+    fontSize: 14,
+    marginBottom: 8,
+    color: '#94A3B8',
+  },
+  progressBar: {
+    width: '100%',
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#2D2D44',
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 3,
+    backgroundColor: '#A855F7',
+  },
+  questionCard: {
+    margin: 16,
     padding: 20,
     borderRadius: 16,
-    marginBottom: 16,
     borderWidth: 1,
-    borderColor: '#2D2D44',
-  },
-  puzzleTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#A855F7',
-    marginBottom: 12,
-  },
-  puzzleQuestion: {
-    fontSize: 16,
-    color: '#FFFFFF',
-    lineHeight: 24,
-  },
-  hintsCard: {
     backgroundColor: '#1A1A2E',
-    padding: 20,
-    borderRadius: 16,
-    marginBottom: 16,
-    borderWidth: 1,
     borderColor: '#2D2D44',
   },
-  hintsHeader: {
+  questionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 16,
   },
-  hintsTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-    marginLeft: 8,
-  },
-  hintContent: {
-    backgroundColor: '#2D2D44',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 12,
-  },
-  hintText: {
-    fontSize: 14,
-    color: '#F59E0B',
-    lineHeight: 20,
-  },
-  hintButton: {
-    backgroundColor: '#2D2D44',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  hintButtonText: {
-    fontSize: 14,
-    color: '#F59E0B',
-    fontWeight: '600',
-  },
-  answerCard: {
-    backgroundColor: '#1A1A2E',
-    padding: 20,
+  questionNumber: {
+    width: 32,
+    height: 32,
     borderRadius: 16,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#2D2D44',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+    backgroundColor: '#A855F7',
   },
-  answerLabel: {
-    fontSize: 16,
-    fontWeight: 'bold',
+  questionNumberText: {
     color: '#FFFFFF',
-    marginBottom: 16,
+    fontWeight: 'bold',
+    fontSize: 16,
+  },
+  questionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#94A3B8',
+  },
+  questionText: {
+    fontSize: 18,
+    lineHeight: 26,
+    color: '#FFFFFF',
+  },
+  optionsContainer: {
+    paddingHorizontal: 16,
+    gap: 12,
   },
   optionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#2D2D44',
     borderRadius: 12,
     padding: 16,
-    marginBottom: 12,
     borderWidth: 2,
+    backgroundColor: '#1A1A2E',
     borderColor: '#2D2D44',
   },
   optionButtonSelected: {
-    borderColor: '#A855F7',
     backgroundColor: '#1E1535',
+    borderColor: '#A855F7',
   },
-  optionCircle: {
+  optionContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  optionIndicator: {
     width: 24,
     height: 24,
     borderRadius: 12,
-    borderWidth: 2,
-    borderColor: '#64748B',
     marginRight: 12,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: '#2D2D44',
   },
-  optionCircleSelected: {
-    borderColor: '#A855F7',
-  },
-  optionCircleInner: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
+  optionIndicatorSelected: {
     backgroundColor: '#A855F7',
   },
   optionText: {
-    fontSize: 15,
-    color: '#FFFFFF',
+    fontSize: 16,
     flex: 1,
-    lineHeight: 20,
+    color: '#FFFFFF',
   },
   optionTextSelected: {
     color: '#FFFFFF',
     fontWeight: '600',
   },
-  submitButton: {
-    backgroundColor: '#10B981',
+  buttonContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 20,
+  },
+  nextButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 14,
+    paddingVertical: 16,
     borderRadius: 12,
+    backgroundColor: '#A855F7',
+    shadowColor: '#A855F7',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
   },
-  submitButtonDisabled: {
+  nextButtonDisabled: {
     backgroundColor: '#2D2D44',
-    opacity: 0.5,
   },
-  submitButtonText: {
+  nextButtonText: {
     fontSize: 16,
     fontWeight: 'bold',
+    marginRight: 8,
     color: '#FFFFFF',
-    marginLeft: 8,
   },
-  pointsCard: {
-    backgroundColor: '#1A1A2E',
-    padding: 20,
-    borderRadius: 16,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: '#2D2D44',
+  nextButtonTextDisabled: {
+    color: '#64748B',
   },
-  pointsTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-    marginBottom: 12,
+  scoreContainer: {
+    position: 'absolute',
+    bottom: 20,
+    left: 20,
+    right: 20,
+    alignItems: 'center',
   },
-  pointsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 8,
-  },
-  pointsLabel: {
+  scoreText: {
     fontSize: 14,
+    fontWeight: '500',
     color: '#94A3B8',
-  },
-  pointsValue: {
-    fontSize: 14,
-    color: '#FFFFFF',
-    fontWeight: '600',
-  },
-  pointsTotal: {
-    borderTopWidth: 1,
-    borderTopColor: '#2D2D44',
-    paddingTop: 12,
-    marginTop: 8,
-  },
-  pointsTotalLabel: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-  },
-  pointsTotalValue: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#10B981',
   },
 });
