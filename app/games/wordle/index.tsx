@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView } from 'react-native';
 import { router } from 'expo-router';
-import { ArrowLeft, RotateCcw } from 'lucide-react-native';
+import { ArrowLeft, RotateCcw, HelpCircle } from 'lucide-react-native';
 import Animated, { FadeIn, FadeInDown, ZoomIn } from 'react-native-reanimated';
 import { useTheme } from '@/contexts/ThemeContext';
 import { supabase } from '@/lib/supabase';
@@ -31,6 +31,7 @@ export default function Wordle() {
   const [won, setWon] = useState(false);
   const [loading, setLoading] = useState(true);
   const [keyStates, setKeyStates] = useState<Record<string, LetterState>>({});
+  const [showHelp, setShowHelp] = useState(false);
 
   useEffect(() => {
     fetchRandomWord();
@@ -169,10 +170,91 @@ export default function Wordle() {
           <ArrowLeft size={24} color="#FFFFFF" />
         </TouchableOpacity>
         <Text style={styles.title}>Wordle</Text>
-        <TouchableOpacity style={styles.resetButton} onPress={resetGame}>
-          <RotateCcw size={24} color="#FFFFFF" />
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          <TouchableOpacity style={styles.helpButton} onPress={() => setShowHelp(true)}>
+            <HelpCircle size={24} color="#FFFFFF" />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.resetButton} onPress={resetGame}>
+            <RotateCcw size={24} color="#FFFFFF" />
+          </TouchableOpacity>
+        </View>
       </View>
+
+      {showHelp && (
+        <View style={styles.helpOverlay}>
+          <Animated.View entering={ZoomIn} style={[styles.helpModal, { backgroundColor: theme.colors.cardBackground }]}>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <Text style={[styles.helpTitle, { color: theme.colors.text }]}>How to Play Wordle</Text>
+
+              <Text style={[styles.helpSection, { color: theme.colors.text }]}>Objective</Text>
+              <Text style={[styles.helpText, { color: theme.colors.textSecondary }]}>
+                Guess the 5-letter word in 6 attempts or less!
+              </Text>
+
+              <Text style={[styles.helpSection, { color: theme.colors.text }]}>How to Play</Text>
+              <Text style={[styles.helpText, { color: theme.colors.textSecondary }]}>
+                1. Type a 5-letter word using the on-screen keyboard{'\n'}
+                2. Press ENTER to submit your guess{'\n'}
+                3. The tiles will change color to show how close you are{'\n'}
+                4. Keep guessing until you find the word or run out of tries
+              </Text>
+
+              <Text style={[styles.helpSection, { color: theme.colors.text }]}>Color Meanings</Text>
+
+              <View style={styles.exampleRow}>
+                <View style={[styles.exampleTile, { backgroundColor: '#10B981' }]}>
+                  <Text style={styles.exampleLetter}>A</Text>
+                </View>
+                <Text style={[styles.exampleText, { color: theme.colors.textSecondary }]}>
+                  GREEN = Letter is correct and in the right position
+                </Text>
+              </View>
+
+              <View style={styles.exampleRow}>
+                <View style={[styles.exampleTile, { backgroundColor: '#F59E0B' }]}>
+                  <Text style={styles.exampleLetter}>B</Text>
+                </View>
+                <Text style={[styles.exampleText, { color: theme.colors.textSecondary }]}>
+                  YELLOW = Letter is in the word but wrong position
+                </Text>
+              </View>
+
+              <View style={styles.exampleRow}>
+                <View style={[styles.exampleTile, { backgroundColor: '#4B5563' }]}>
+                  <Text style={styles.exampleLetter}>C</Text>
+                </View>
+                <Text style={[styles.exampleText, { color: theme.colors.textSecondary }]}>
+                  GRAY = Letter is not in the word at all
+                </Text>
+              </View>
+
+              <Text style={[styles.helpSection, { color: theme.colors.text }]}>Example</Text>
+              <Text style={[styles.helpText, { color: theme.colors.textSecondary }]}>
+                If the word is "APPLE":{'\n\n'}
+                • Guess "PARTY" → P is green (correct position), A is yellow (wrong position){'\n'}
+                • Guess "PLACE" → P and L are green, A is yellow{'\n'}
+                • Guess "APPLE" → All green, you win!
+              </Text>
+
+              <Text style={[styles.helpSection, { color: theme.colors.text }]}>Tips</Text>
+              <Text style={[styles.helpText, { color: theme.colors.textSecondary }]}>
+                • Start with common vowels (A, E, I, O, U){'\n'}
+                • Use letters that appear frequently (R, S, T, L, N){'\n'}
+                • Pay attention to the keyboard colors{'\n'}
+                • Eliminate letters shown in gray{'\n'}
+                • Rearrange yellow letters to new positions
+              </Text>
+
+              <TouchableOpacity
+                style={[styles.closeHelpButton, { backgroundColor: theme.colors.primary }]}
+                onPress={() => setShowHelp(false)}
+              >
+                <Text style={styles.closeHelpText}>Got It!</Text>
+              </TouchableOpacity>
+            </ScrollView>
+          </Animated.View>
+        </View>
+      )}
 
       <View style={styles.content}>
         <View style={styles.grid}>
@@ -275,6 +357,13 @@ const createStyles = (theme: any) =>
     backButton: {
       padding: 8,
     },
+    headerActions: {
+      flexDirection: 'row',
+      gap: 8,
+    },
+    helpButton: {
+      padding: 8,
+    },
     resetButton: {
       padding: 8,
     },
@@ -282,6 +371,71 @@ const createStyles = (theme: any) =>
       fontSize: 24,
       fontWeight: 'bold',
       color: '#FFFFFF',
+    },
+    helpOverlay: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: 'rgba(0, 0, 0, 0.9)',
+      justifyContent: 'center',
+      alignItems: 'center',
+      zIndex: 1000,
+      padding: 20,
+    },
+    helpModal: {
+      width: '100%',
+      maxHeight: '85%',
+      borderRadius: 20,
+      padding: 24,
+    },
+    helpTitle: {
+      fontSize: 28,
+      fontWeight: 'bold',
+      marginBottom: 24,
+      textAlign: 'center',
+    },
+    helpSection: {
+      fontSize: 20,
+      fontWeight: 'bold',
+      marginTop: 20,
+      marginBottom: 12,
+    },
+    helpText: {
+      fontSize: 15,
+      lineHeight: 24,
+      marginBottom: 8,
+    },
+    exampleRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginVertical: 10,
+    },
+    exampleTile: {
+      width: 40,
+      height: 40,
+      borderRadius: 6,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginRight: 12,
+    },
+    exampleLetter: {
+      fontSize: 18,
+      fontWeight: 'bold',
+      color: '#FFFFFF',
+    },
+    exampleText: {
+      flex: 1,
+      fontSize: 14,
+      lineHeight: 20,
+    },
+    closeHelpButton: {
+      marginTop: 24,
+      paddingVertical: 16,
+      borderRadius: 12,
+      alignItems: 'center',
+    },
+    closeHelpText: {
+      color: '#FFFFFF',
+      fontSize: 16,
+      fontWeight: 'bold',
     },
     loadingContainer: {
       flex: 1,
