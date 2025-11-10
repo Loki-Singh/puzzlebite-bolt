@@ -1,26 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Clock, Target, Trophy, Play, Brain } from 'lucide-react-native';
-import { supabase } from '@/lib/supabase';
-
-interface Puzzle {
-  id: string;
-  category: string;
-  type: string;
-  question: string;
-  answer: string;
-  options: string[];
-  difficulty: string;
-  hints: string[];
-  points: number;
-}
+import { Clock, Target, Trophy, Play, Shapes } from 'lucide-react-native';
+import { ShapeComponents } from '@/components/puzzle/PuzzleShapes';
+import { generatePuzzle } from '@/lib/puzzleGenerator';
 
 export default function PuzzleOverview() {
   const { category } = useLocalSearchParams();
-  const [puzzle, setPuzzle] = useState<Puzzle | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [showHint, setShowHint] = useState(false);
+  const [isBlurred, setIsBlurred] = useState(true);
+  const [previewPuzzle, setPreviewPuzzle] = useState<any>(null);
 
   const categoryNames: { [key: string]: string } = {
     ipl: 'IPL',
@@ -38,63 +26,14 @@ export default function PuzzleOverview() {
   };
 
   useEffect(() => {
-    fetchPuzzle();
-  }, [category]);
-
-  const fetchPuzzle = async () => {
-    try {
-      setLoading(true);
-      const { data, error} = await supabase
-        .from('puzzles')
-        .select('*')
-        .eq('category', category)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (error) {
-        console.error('Error fetching puzzle:', error);
-        return;
-      }
-
-      if (data) {
-        setPuzzle(data);
-      }
-    } catch (error) {
-      console.error('Error:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+    const puzzle = generatePuzzle('easy');
+    setPreviewPuzzle(puzzle);
+  }, []);
 
   const handleStartPuzzle = () => {
-    if (puzzle) {
-      router.push({
-        pathname: '/puzzle/game',
-        params: {
-          category: category as string,
-          puzzleId: puzzle.id,
-        },
-      });
-    }
+    setIsBlurred(false);
+    router.push(`/puzzle/game?category=${category}`);
   };
-
-  if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#A855F7" />
-        <Text style={styles.loadingText}>Loading puzzle...</Text>
-      </View>
-    );
-  }
-
-  if (!puzzle) {
-    return (
-      <View style={styles.errorContainer}>
-        <Text style={styles.errorText}>No puzzle found for this category</Text>
-      </View>
-    );
-  }
 
   return (
     <View style={styles.container}>
@@ -108,18 +47,18 @@ export default function PuzzleOverview() {
       <View style={styles.challengeCard}>
         <View style={styles.challengeHeader}>
           <Trophy size={32} color="#F59E0B" />
-          <Text style={styles.challengeTitle}>Quiz Challenge</Text>
+          <Text style={styles.challengeTitle}>Puzzle Challenge</Text>
         </View>
 
         <Text style={styles.challengeDescription}>
-          Test your knowledge about {categoryNames[category as string]}! Answer the multiple choice question within the time limit.
+          Match shapes in the correct sequence to complete the formation! Fill all slots within the time limit to win your reward.
         </Text>
 
         <View style={styles.challengeStats}>
           <View style={styles.statItem}>
-            <Brain size={20} color="#3B82F6" />
-            <Text style={styles.statNumber}>{puzzle.difficulty}</Text>
-            <Text style={styles.statLabel}>Level</Text>
+            <Shapes size={20} color="#3B82F6" />
+            <Text style={styles.statNumber}>4</Text>
+            <Text style={styles.statLabel}>Shapes</Text>
           </View>
 
           <View style={styles.statItem}>
@@ -130,8 +69,8 @@ export default function PuzzleOverview() {
 
           <View style={styles.statItem}>
             <Trophy size={20} color="#10B981" />
-            <Text style={styles.statNumber}>{puzzle.points}</Text>
-            <Text style={styles.statLabel}>Points</Text>
+            <Text style={styles.statNumber}>100%</Text>
+            <Text style={styles.statLabel}>Accuracy</Text>
           </View>
         </View>
       </View>
@@ -140,27 +79,33 @@ export default function PuzzleOverview() {
       <View style={styles.previewCard}>
         <Text style={styles.previewTitle}>Puzzle Preview</Text>
 
-        <View style={styles.puzzleContainer}>
-          {!showHint ? (
-            <View style={styles.blurOverlay}>
-              <Brain size={48} color="#A855F7" />
-              <Text style={styles.blurText}>Question is hidden</Text>
-              <TouchableOpacity style={styles.revealButton} onPress={() => setShowHint(true)}>
-                <Text style={styles.revealButtonText}>Preview Question</Text>
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <View style={styles.riddlePreview}>
-              <Text style={styles.riddleText}>{puzzle.question}</Text>
-              {puzzle.options && puzzle.options.length > 0 && (
-                <View style={styles.optionsPreview}>
-                  {puzzle.options.map((option, index) => (
-                    <Text key={index} style={styles.optionPreviewText}>
-                      {option}
-                    </Text>
-                  ))}
+        <View style={[styles.puzzleContainer, isBlurred && styles.blurredContainer]}>
+          {previewPuzzle && (
+            <View style={styles.previewGrid}>
+              {Array.from({ length: previewPuzzle.rows }).map((_, rowIndex) => (
+                <View key={rowIndex} style={styles.previewRow}>
+                  {Array.from({ length: previewPuzzle.cols }).map((_, colIndex) => {
+                    const slot = previewPuzzle.slots.find((s: any) => s.row === rowIndex && s.col === colIndex);
+                    if (!slot) {
+                      return <View key={colIndex} style={styles.previewEmptyCell} />;
+                    }
+                    const ShapeComponent = ShapeComponents[slot.shapeType];
+                    return (
+                      <View key={colIndex} style={styles.previewSlot}>
+                        <ShapeComponent size={40} color="#555" />
+                      </View>
+                    );
+                  })}
                 </View>
-              )}
+              ))}
+            </View>
+          )}
+
+          {isBlurred && (
+            <View style={styles.blurOverlay}>
+              <TouchableOpacity style={styles.revealButton} onPress={() => setIsBlurred(false)}>
+                <Text style={styles.revealButtonText}>Preview Puzzle</Text>
+              </TouchableOpacity>
             </View>
           )}
         </View>
@@ -168,17 +113,11 @@ export default function PuzzleOverview() {
         <View style={styles.difficultyIndicator}>
           <Text style={styles.difficultyLabel}>Difficulty Level:</Text>
           <View style={styles.difficultyStars}>
-            {Array.from({ length: 5 }).map((_, index) => (
-              <View
-                key={index}
-                style={[
-                  styles.star,
-                  index < (puzzle.difficulty === 'easy' ? 2 : puzzle.difficulty === 'medium' ? 3 : 4)
-                    ? styles.filledStar
-                    : styles.emptyStar,
-                ]}
-              />
-            ))}
+            <View style={styles.filledStar} />
+            <View style={styles.filledStar} />
+            <View style={styles.emptyStar} />
+            <View style={styles.emptyStar} />
+            <View style={styles.emptyStar} />
           </View>
         </View>
       </View>
@@ -187,11 +126,11 @@ export default function PuzzleOverview() {
       <View style={styles.rulesCard}>
         <Text style={styles.rulesTitle}>Challenge Rules</Text>
         <View style={styles.rulesList}>
-          <Text style={styles.ruleItem}>• Read the question carefully</Text>
-          <Text style={styles.ruleItem}>• Choose one answer from 4 options</Text>
-          <Text style={styles.ruleItem}>• You have 60 seconds to answer</Text>
-          <Text style={styles.ruleItem}>• Use hints if you get stuck (costs points)</Text>
-          <Text style={styles.ruleItem}>• Only one answer is correct</Text>
+          <Text style={styles.ruleItem}>• Select shapes and place them in the correct slots</Text>
+          <Text style={styles.ruleItem}>• Follow the numerical sequence (1, 2, 3, 4...)</Text>
+          <Text style={styles.ruleItem}>• Match the correct shape to the correct position</Text>
+          <Text style={styles.ruleItem}>• Complete within 60 seconds</Text>
+          <Text style={styles.ruleItem}>• Wrong placement ends the challenge</Text>
         </View>
       </View>
 
@@ -210,29 +149,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#0F0F23',
-  },
-  loadingContainer: {
-    flex: 1,
-    backgroundColor: '#0F0F23',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    color: '#FFFFFF',
-    marginTop: 16,
-    fontSize: 16,
-  },
-  errorContainer: {
-    flex: 1,
-    backgroundColor: '#0F0F23',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  errorText: {
-    color: '#EF4444',
-    fontSize: 16,
-    textAlign: 'center',
   },
   header: {
     backgroundColor: '#1A1A2E',
@@ -287,7 +203,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   statNumber: {
-    fontSize: 20,
+    fontSize: 24,
     fontWeight: 'bold',
     color: '#FFFFFF',
     marginTop: 8,
@@ -313,53 +229,60 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   puzzleContainer: {
+    position: 'relative',
     backgroundColor: '#2D2D44',
-    padding: 20,
+    padding: 16,
     borderRadius: 12,
     marginBottom: 16,
-    minHeight: 150,
+    minHeight: 120,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  blurredContainer: {
+    backgroundColor: '#16213E',
+  },
+  previewGrid: {
+    gap: 8,
+  },
+  previewRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  previewEmptyCell: {
+    width: 60,
+    height: 60,
+  },
+  previewSlot: {
+    width: 60,
+    height: 60,
+    backgroundColor: '#1A1A2E',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#444',
     justifyContent: 'center',
     alignItems: 'center',
   },
   blurOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(255, 255, 255, 0.8)',
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  blurText: {
-    color: '#94A3B8',
-    fontSize: 16,
-    marginTop: 12,
-    marginBottom: 16,
+    borderRadius: 12,
   },
   revealButton: {
     backgroundColor: '#A855F7',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
     borderRadius: 8,
   },
   revealButtonText: {
     fontSize: 14,
     color: '#FFFFFF',
-    fontWeight: '600',
-  },
-  riddlePreview: {
-    padding: 16,
-  },
-  riddleText: {
-    fontSize: 16,
-    color: '#FFFFFF',
-    lineHeight: 24,
-    textAlign: 'center',
-    marginBottom: 16,
-  },
-  optionsPreview: {
-    width: '100%',
-    gap: 8,
-  },
-  optionPreviewText: {
-    fontSize: 14,
-    color: '#94A3B8',
-    lineHeight: 20,
+    fontWeight: '500',
   },
   difficultyIndicator: {
     flexDirection: 'row',
@@ -374,17 +297,19 @@ const styles = StyleSheet.create({
   difficultyStars: {
     flexDirection: 'row',
   },
-  star: {
+  filledStar: {
     width: 16,
     height: 16,
+    backgroundColor: '#A855F7',
     borderRadius: 2,
     marginHorizontal: 2,
   },
-  filledStar: {
-    backgroundColor: '#A855F7',
-  },
   emptyStar: {
+    width: 16,
+    height: 16,
     backgroundColor: '#2D2D44',
+    borderRadius: 2,
+    marginHorizontal: 2,
   },
   rulesCard: {
     backgroundColor: '#1A1A2E',

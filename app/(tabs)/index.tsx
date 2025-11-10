@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, TextInput } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import { Clock, Star, Gift, History, TrendingUp, Search, MapPin, UserCircle } from 'lucide-react-native';
+import { Clock, Star, Gift, History, TrendingUp, Search, MapPin } from 'lucide-react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import ThemeToggle from '@/components/ThemeToggle';
 
@@ -236,7 +236,7 @@ export default function CustomerLanding() {
         {/* Puzzle Drop CTA */}
         <TouchableOpacity
           style={[styles.puzzleDropCTA, { backgroundColor: theme.colors.primary }]}
-          onPress={() => router.push('/puzzle/game/shape-game')}
+          onPress={() => router.push('/puzzle/drop')}
         >
           <View style={styles.puzzleDropContent}>
             <View style={styles.puzzleDropIcon}>
@@ -268,12 +268,9 @@ export default function CustomerLanding() {
               <Text style={[styles.quickActionText, { color: theme.colors.text }]}>Rewards</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity
-              style={[styles.quickActionCard, { backgroundColor: theme.colors.cardBackground, borderColor: theme.colors.border }]}
-              onPress={() => router.push('/mascot')}
-            >
-              <UserCircle size={24} color="#8B5CF6" />
-              <Text style={[styles.quickActionText, { color: theme.colors.text }]}>My Mascot</Text>
+            <TouchableOpacity style={[styles.quickActionCard, { backgroundColor: theme.colors.cardBackground, borderColor: theme.colors.border }]}>
+              <Star size={24} color="#EF4444" />
+              <Text style={[styles.quickActionText, { color: theme.colors.text }]}>Favorites</Text>
             </TouchableOpacity>
           </View>
         </View>
