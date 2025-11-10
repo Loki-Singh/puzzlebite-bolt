@@ -1,282 +1,212 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, ActivityIndicator } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Clock, ChevronLeft } from 'lucide-react-native';
-import { useTheme } from '@/contexts/ThemeContext';
-import { ShapeComponents, ShapeType } from '@/components/puzzle/PuzzleShapes';
-import { generatePuzzle, PuzzleFormation, PuzzleShape, PuzzleSlot } from '@/lib/puzzleGenerator';
-import Animated, { useAnimatedStyle, useSharedValue, withSpring, withSequence } from 'react-native-reanimated';
-import { AnimatedMascot } from '@/components/mascot/AnimatedMascot';
-import { useMascot } from '@/hooks/useMascot';
-import { MascotAnimation } from '@/lib/mascotTypes';
+import { Clock, Lightbulb, CheckCircle } from 'lucide-react-native';
+import { supabase } from '@/lib/supabase';
+
+interface Puzzle {
+  id: string;
+  category: string;
+  type: string;
+  question: string;
+  answer: string;
+  difficulty: string;
+  hints: string[];
+  points: number;
+}
 
 export default function PuzzleGame() {
-  const { theme } = useTheme();
-  const { category } = useLocalSearchParams();
-  const { mascotType, currentAnimation, triggerAnimation } = useMascot();
-
-  const [puzzle, setPuzzle] = useState<PuzzleFormation | null>(null);
-  const [currentStep, setCurrentStep] = useState(0);
-  const [selectedShape, setSelectedShape] = useState<PuzzleShape | null>(null);
+  const { category, puzzleId } = useLocalSearchParams();
+  const [puzzle, setPuzzle] = useState<Puzzle | null>(null);
+  const [loading, setLoading] = useState(true);
   const [timeLeft, setTimeLeft] = useState(60);
-  const [isGameActive, setIsGameActive] = useState(true);
-  const [filledSlots, setFilledSlots] = useState<Set<number>>(new Set());
-  const [mascotReaction, setMascotReaction] = useState<MascotAnimation>('idle');
-  const shakeAnimation = useSharedValue(0);
-  const idleTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const lastActivityRef = useRef<number>(Date.now());
+  const [userAnswer, setUserAnswer] = useState('');
+  const [hintsUsed, setHintsUsed] = useState(0);
+  const [showHint, setShowHint] = useState(false);
+  const [gameEnded, setGameEnded] = useState(false);
 
-  useEffect(() => {
-    const newPuzzle = generatePuzzle('easy');
-    setPuzzle(newPuzzle);
-  }, []);
-
-  useEffect(() => {
-    let timer: NodeJS.Timeout;
-
-    if (isGameActive && puzzle) {
-      timer = setInterval(() => {
-        setTimeLeft((prev) => {
-          if (prev <= 1) {
-            setIsGameActive(false);
-            router.push('/puzzle/timeout');
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    }
-
-    return () => {
-      if (timer) {
-        clearInterval(timer);
-      }
-    };
-  }, [isGameActive, puzzle]);
-
-  useEffect(() => {
-    const checkIdleTime = () => {
-      const now = Date.now();
-      const timeSinceLastActivity = now - lastActivityRef.current;
-
-      if (timeSinceLastActivity > 10000 && isGameActive) {
-        setMascotReaction('tap_screen');
-        setTimeout(() => {
-          setMascotReaction('idle');
-        }, 2000);
-      }
-    };
-
-    idleTimerRef.current = setInterval(checkIdleTime, 10000);
-
-    return () => {
-      setIsGameActive(false);
-      if (idleTimerRef.current) {
-        clearInterval(idleTimerRef.current);
-      }
-    };
-  }, [isGameActive]);
-
-  useEffect(() => {
-    lastActivityRef.current = Date.now();
-  }, [selectedShape, currentStep]);
-
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  const categoryNames: { [key: string]: string } = {
+    ipl: 'IPL',
+    fifa: 'FIFA',
+    music: 'MUSIC',
+    hollywood: 'HOLLYWOOD',
+    bollywood: 'BOLLYWOOD',
+    history: 'HISTORY',
+    mythology: 'MYTHOLOGY',
+    science: 'SCIENCE',
+    anime: 'ANIME',
+    cartoon: 'CARTOON',
+    geography: 'GEOGRAPHY',
+    technology: 'TECHNOLOGY',
   };
 
-  const handleShapeSelect = (shape: PuzzleShape) => {
-    if (!shape.used) {
-      setSelectedShape(shape);
+  useEffect(() => {
+    fetchPuzzle();
+  }, [puzzleId]);
+
+  useEffect(() => {
+    if (timeLeft > 0 && !gameEnded) {
+      const timer = setTimeout(() => setTimeLeft(timeLeft - 1), 1000);
+      return () => clearTimeout(timer);
+    } else if (timeLeft === 0 && !gameEnded) {
+      handleTimeout();
+    }
+  }, [timeLeft, gameEnded]);
+
+  const fetchPuzzle = async () => {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('puzzles')
+        .select('*')
+        .eq('id', puzzleId)
+        .maybeSingle();
+
+      if (error) {
+        console.error('Error fetching puzzle:', error);
+        return;
+      }
+
+      if (data) {
+        setPuzzle(data);
+      }
+    } catch (error) {
+      console.error('Error:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleSlotPress = (slot: PuzzleSlot) => {
-    if (!selectedShape || slot.filled || !puzzle) return;
+  const handleTimeout = () => {
+    setGameEnded(true);
+    router.replace('/puzzle/timeout');
+  };
 
-    const correctSlotId = puzzle.correctSequence[currentStep];
+  const handleUseHint = () => {
+    if (puzzle && hintsUsed < puzzle.hints.length) {
+      setHintsUsed(hintsUsed + 1);
+      setShowHint(true);
+    }
+  };
 
-    if (slot.id === correctSlotId && slot.shapeType === selectedShape.shapeType) {
-      setFilledSlots(prev => new Set([...prev, slot.id]));
+  const handleSubmit = () => {
+    if (!puzzle) return;
 
-      setPuzzle(prev => {
-        if (!prev) return prev;
-        return {
-          ...prev,
-          slots: prev.slots.map(s =>
-            s.id === slot.id ? { ...s, filled: true } : s
-          ),
-          shapes: prev.shapes.map(sh =>
-            sh.id === selectedShape.id ? { ...sh, used: true } : sh
-          ),
-        };
+    const normalizedUserAnswer = userAnswer.trim().toLowerCase();
+    const normalizedCorrectAnswer = puzzle.answer.trim().toLowerCase();
+
+    if (normalizedUserAnswer === normalizedCorrectAnswer) {
+      const finalPoints = Math.max(puzzle.points - (hintsUsed * 20), 50);
+      router.replace({
+        pathname: '/puzzle/success',
+        params: {
+          category: category as string,
+          points: finalPoints.toString(),
+          timeLeft: timeLeft.toString(),
+        },
       });
-
-      setSelectedShape(null);
-      setCurrentStep(prev => prev + 1);
-
-      if (currentStep + 1 === puzzle.correctSequence.length) {
-        setIsGameActive(false);
-        setMascotReaction('win');
-        setTimeout(() => {
-          const timeTaken = 60 - timeLeft;
-          router.push(`/puzzle/success?timeTaken=${timeTaken}`);
-        }, 1500);
-      }
     } else {
-      setMascotReaction('lose');
-      shakeAnimation.value = withSequence(
-        withSpring(-10, { damping: 2 }),
-        withSpring(10, { damping: 2 }),
-        withSpring(-10, { damping: 2 }),
-        withSpring(0, { damping: 2 })
-      );
-
-      setTimeout(() => {
-        setIsGameActive(false);
-        router.push('/puzzle/failed');
-      }, 1500);
+      router.replace('/puzzle/failed');
     }
   };
 
-  const animatedShakeStyle = useAnimatedStyle(() => {
-    return {
-      transform: [{ translateX: shakeAnimation.value }],
-    };
-  });
-
-  const styles = useMemo(() => createStyles(theme), [theme]);
-
-  if (!puzzle) {
+  if (loading) {
     return (
-      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-        <View style={styles.loadingContainer}>
-          <Text style={[styles.loadingText, { color: theme.colors.text }]}>
-            Generating puzzle...
-          </Text>
-        </View>
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#A855F7" />
+        <Text style={styles.loadingText}>Loading puzzle...</Text>
       </View>
     );
   }
 
-  const progress = (currentStep / puzzle.correctSequence.length) * 100;
+  if (!puzzle) {
+    return (
+      <View style={styles.errorContainer}>
+        <Text style={styles.errorText}>Puzzle not found</Text>
+      </View>
+    );
+  }
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <AnimatedMascot
-        mascotType={mascotType}
-        animation={mascotReaction}
-        onAnimationComplete={() => setMascotReaction('idle')}
-      />
-
-      <View style={[styles.header, { backgroundColor: theme.colors.headerBackground }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <ChevronLeft size={24} color={theme.colors.text} />
-        </TouchableOpacity>
-
+    <View style={styles.container}>
+      {/* Header */}
+      <View style={styles.header}>
+        <Text style={styles.categoryTitle}>{categoryNames[category as string]}</Text>
         <View style={styles.timerContainer}>
-          <Clock size={20} color={theme.colors.error} />
-          <Text style={[styles.timerText, { color: theme.colors.error }]}>{formatTime(timeLeft)}</Text>
-        </View>
-
-        <View style={styles.progressContainer}>
-          <Text style={[styles.progressText, { color: theme.colors.textSecondary }]}>
-            {currentStep} of {puzzle.correctSequence.length}
-          </Text>
-          <View style={[styles.progressBar, { backgroundColor: theme.colors.secondary }]}>
-            <View style={[styles.progressFill, { width: `${progress}%`, backgroundColor: theme.colors.primary }]} />
-          </View>
+          <Clock size={20} color="#EF4444" />
+          <Text style={styles.timerText}>{timeLeft}s</Text>
         </View>
       </View>
 
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-        <Text style={[styles.instructionText, { color: theme.colors.text }]}>
-          Fill the formation by selecting shapes in the correct sequence
-        </Text>
-
-        <Animated.View style={[styles.formationContainer, animatedShakeStyle]}>
-          <View style={styles.gridContainer}>
-            {Array.from({ length: puzzle.rows }).map((_, rowIndex) => (
-              <View key={rowIndex} style={styles.gridRow}>
-                {Array.from({ length: puzzle.cols }).map((_, colIndex) => {
-                  const slot = puzzle.slots.find(s => s.row === rowIndex && s.col === colIndex);
-
-                  if (!slot) {
-                    return <View key={colIndex} style={styles.emptyCell} />;
-                  }
-
-                  const ShapeComponent = ShapeComponents[slot.shapeType];
-                  const correspondingShape = puzzle.shapes.find(sh => sh.id === slot.id);
-
-                  return (
-                    <TouchableOpacity
-                      key={colIndex}
-                      style={[
-                        styles.slotCell,
-                        {
-                          backgroundColor: slot.filled ? 'transparent' : theme.colors.secondary,
-                          borderColor: slot.id === puzzle.correctSequence[currentStep] && selectedShape
-                            ? theme.colors.primary
-                            : theme.colors.border,
-                          borderWidth: slot.id === puzzle.correctSequence[currentStep] && selectedShape ? 3 : 1,
-                        }
-                      ]}
-                      onPress={() => handleSlotPress(slot)}
-                      disabled={slot.filled}
-                    >
-                      {slot.filled && correspondingShape ? (
-                        <ShapeComponent size={60} color={correspondingShape.color} />
-                      ) : (
-                        <View style={styles.slotPlaceholder}>
-                          <ShapeComponent size={50} color="#444" />
-                        </View>
-                      )}
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            ))}
-          </View>
-        </Animated.View>
-
-        <View style={[styles.instructionBox, { backgroundColor: theme.colors.cardBackground, borderColor: theme.colors.border }]}>
-          <Text style={[styles.instructionTitle, { color: theme.colors.primary }]}>Next Step:</Text>
-          <Text style={[styles.instructionDetail, { color: theme.colors.text }]}>
-            {selectedShape
-              ? `Place the ${selectedShape.shapeType} (${selectedShape.number}) in the correct position`
-              : 'Select a shape from below'}
-          </Text>
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        {/* Puzzle Question */}
+        <View style={styles.puzzleCard}>
+          <Text style={styles.puzzleTitle}>Solve the Riddle</Text>
+          <Text style={styles.puzzleQuestion}>{puzzle.question}</Text>
         </View>
 
-        <View style={[styles.shapesContainer, { backgroundColor: theme.colors.cardBackground, borderColor: theme.colors.border }]}>
-          <Text style={[styles.shapesTitle, { color: theme.colors.text }]}>Available Shapes</Text>
-          <View style={styles.shapesGrid}>
-            {puzzle.shapes.map((shape) => {
-              const ShapeComponent = ShapeComponents[shape.shapeType];
-              return (
-                <TouchableOpacity
-                  key={shape.id}
-                  style={[
-                    styles.shapeButton,
-                    {
-                      backgroundColor: shape.used ? theme.colors.secondary : theme.colors.background,
-                      borderColor: selectedShape?.id === shape.id ? theme.colors.primary : theme.colors.border,
-                      borderWidth: selectedShape?.id === shape.id ? 3 : 1,
-                      opacity: shape.used ? 0.3 : 1,
-                    }
-                  ]}
-                  onPress={() => handleShapeSelect(shape)}
-                  disabled={shape.used}
-                >
-                  <ShapeComponent size={50} color={shape.color} />
-                  <View style={[styles.numberBadge, { backgroundColor: theme.colors.primary }]}>
-                    <Text style={styles.numberText}>{shape.number}</Text>
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
+        {/* Hints Section */}
+        {puzzle.hints && puzzle.hints.length > 0 && (
+          <View style={styles.hintsCard}>
+            <View style={styles.hintsHeader}>
+              <Lightbulb size={20} color="#F59E0B" />
+              <Text style={styles.hintsTitle}>Need a Hint?</Text>
+            </View>
+
+            {showHint && hintsUsed > 0 ? (
+              <View style={styles.hintContent}>
+                <Text style={styles.hintText}>{puzzle.hints[hintsUsed - 1]}</Text>
+              </View>
+            ) : null}
+
+            {hintsUsed < puzzle.hints.length && (
+              <TouchableOpacity style={styles.hintButton} onPress={handleUseHint}>
+                <Text style={styles.hintButtonText}>
+                  Use Hint ({hintsUsed}/{puzzle.hints.length}) - Costs 20 points
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+
+        {/* Answer Input */}
+        <View style={styles.answerCard}>
+          <Text style={styles.answerLabel}>Your Answer</Text>
+          <TextInput
+            style={styles.answerInput}
+            placeholder="Type your answer here..."
+            placeholderTextColor="#64748B"
+            value={userAnswer}
+            onChangeText={setUserAnswer}
+            autoCapitalize="words"
+          />
+
+          <TouchableOpacity
+            style={[styles.submitButton, !userAnswer.trim() && styles.submitButtonDisabled]}
+            onPress={handleSubmit}
+            disabled={!userAnswer.trim()}
+          >
+            <CheckCircle size={20} color="#FFFFFF" />
+            <Text style={styles.submitButtonText}>Submit Answer</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Points Info */}
+        <View style={styles.pointsCard}>
+          <Text style={styles.pointsTitle}>Points Breakdown</Text>
+          <View style={styles.pointsRow}>
+            <Text style={styles.pointsLabel}>Base Points:</Text>
+            <Text style={styles.pointsValue}>{puzzle.points}</Text>
+          </View>
+          <View style={styles.pointsRow}>
+            <Text style={styles.pointsLabel}>Hints Used:</Text>
+            <Text style={styles.pointsValue}>-{hintsUsed * 20}</Text>
+          </View>
+          <View style={[styles.pointsRow, styles.pointsTotal]}>
+            <Text style={styles.pointsTotalLabel}>Current Total:</Text>
+            <Text style={styles.pointsTotalValue}>
+              {Math.max(puzzle.points - (hintsUsed * 20), 50)}
+            </Text>
           </View>
         </View>
       </ScrollView>
@@ -284,147 +214,212 @@ export default function PuzzleGame() {
   );
 }
 
-const createStyles = (theme: any) => StyleSheet.create({
+const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#0F0F23',
   },
   loadingContainer: {
     flex: 1,
+    backgroundColor: '#0F0F23',
     justifyContent: 'center',
     alignItems: 'center',
   },
   loadingText: {
-    fontSize: 18,
-    fontWeight: '600',
+    color: '#FFFFFF',
+    marginTop: 16,
+    fontSize: 16,
+  },
+  errorContainer: {
+    flex: 1,
+    backgroundColor: '#0F0F23',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  errorText: {
+    color: '#EF4444',
+    fontSize: 16,
+    textAlign: 'center',
   },
   header: {
+    backgroundColor: '#1A1A2E',
     paddingHorizontal: 20,
     paddingTop: 60,
-    paddingBottom: 16,
+    paddingBottom: 20,
     borderBottomLeftRadius: 24,
     borderBottomRightRadius: 24,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
-  backButton: {
-    marginBottom: 12,
+  categoryTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
   },
   timerContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 12,
+    backgroundColor: '#2D2D44',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
   },
   timerText: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginLeft: 8,
-  },
-  progressContainer: {
-    alignItems: 'center',
-  },
-  progressText: {
-    fontSize: 14,
-    marginBottom: 8,
-  },
-  progressBar: {
-    width: '100%',
-    height: 6,
-    borderRadius: 3,
-  },
-  progressFill: {
-    height: '100%',
-    borderRadius: 3,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    padding: 16,
-    paddingBottom: 40,
-  },
-  instructionText: {
-    fontSize: 16,
-    fontWeight: '600',
-    textAlign: 'center',
-    marginBottom: 20,
-  },
-  formationContainer: {
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  gridContainer: {
-    gap: 8,
-  },
-  gridRow: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  emptyCell: {
-    width: 80,
-    height: 80,
-  },
-  slotCell: {
-    width: 80,
-    height: 80,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  slotPlaceholder: {
-    opacity: 0.3,
-  },
-  instructionBox: {
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    marginBottom: 20,
-  },
-  instructionTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginBottom: 8,
-  },
-  instructionDetail: {
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  shapesContainer: {
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-  },
-  shapesTitle: {
     fontSize: 18,
     fontWeight: 'bold',
+    color: '#EF4444',
+    marginLeft: 6,
+  },
+  content: {
+    flex: 1,
+    padding: 16,
+  },
+  puzzleCard: {
+    backgroundColor: '#1A1A2E',
+    padding: 20,
+    borderRadius: 16,
     marginBottom: 16,
-    textAlign: 'center',
+    borderWidth: 1,
+    borderColor: '#2D2D44',
   },
-  shapesGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-    justifyContent: 'center',
-  },
-  shapeButton: {
-    width: 80,
-    height: 80,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-    position: 'relative',
-  },
-  numberBadge: {
-    position: 'absolute',
-    top: 4,
-    right: 4,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  numberText: {
-    color: '#FFFFFF',
-    fontSize: 12,
+  puzzleTitle: {
+    fontSize: 18,
     fontWeight: 'bold',
+    color: '#A855F7',
+    marginBottom: 12,
+  },
+  puzzleQuestion: {
+    fontSize: 16,
+    color: '#FFFFFF',
+    lineHeight: 24,
+  },
+  hintsCard: {
+    backgroundColor: '#1A1A2E',
+    padding: 20,
+    borderRadius: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#2D2D44',
+  },
+  hintsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  hintsTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    marginLeft: 8,
+  },
+  hintContent: {
+    backgroundColor: '#2D2D44',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 12,
+  },
+  hintText: {
+    fontSize: 14,
+    color: '#F59E0B',
+    lineHeight: 20,
+  },
+  hintButton: {
+    backgroundColor: '#2D2D44',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  hintButtonText: {
+    fontSize: 14,
+    color: '#F59E0B',
+    fontWeight: '600',
+  },
+  answerCard: {
+    backgroundColor: '#1A1A2E',
+    padding: 20,
+    borderRadius: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#2D2D44',
+  },
+  answerLabel: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    marginBottom: 12,
+  },
+  answerInput: {
+    backgroundColor: '#2D2D44',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 16,
+    color: '#FFFFFF',
+    marginBottom: 16,
+  },
+  submitButton: {
+    backgroundColor: '#10B981',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    borderRadius: 12,
+  },
+  submitButtonDisabled: {
+    backgroundColor: '#2D2D44',
+    opacity: 0.5,
+  },
+  submitButtonText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    marginLeft: 8,
+  },
+  pointsCard: {
+    backgroundColor: '#1A1A2E',
+    padding: 20,
+    borderRadius: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#2D2D44',
+  },
+  pointsTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    marginBottom: 12,
+  },
+  pointsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  pointsLabel: {
+    fontSize: 14,
+    color: '#94A3B8',
+  },
+  pointsValue: {
+    fontSize: 14,
+    color: '#FFFFFF',
+    fontWeight: '600',
+  },
+  pointsTotal: {
+    borderTopWidth: 1,
+    borderTopColor: '#2D2D44',
+    paddingTop: 12,
+    marginTop: 8,
+  },
+  pointsTotalLabel: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+  },
+  pointsTotalValue: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#10B981',
   },
 });

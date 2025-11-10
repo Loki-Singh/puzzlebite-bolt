@@ -236,7 +236,7 @@ export default function CustomerLanding() {
         {/* Puzzle Drop CTA */}
         <TouchableOpacity
           style={[styles.puzzleDropCTA, { backgroundColor: theme.colors.primary }]}
-          onPress={() => router.push('/puzzle/drop')}
+          onPress={() => router.push('/puzzle/game/shape-game')}
         >
           <View style={styles.puzzleDropContent}>
             <View style={styles.puzzleDropIcon}>
